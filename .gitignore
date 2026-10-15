@@ -5,3 +5,6 @@ dist/
 .env.local
 *.log
 *.tsbuildinfo
+.claude/
+.vexp/
+.vscode/
