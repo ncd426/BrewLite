@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { fetchProduct, type Product } from '@/lib/api';
 import { useCart } from '@/components/CartProvider';
+import { MOCK_PRODUCTS } from '@/lib/mock-data';
 
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null);
@@ -12,9 +13,13 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   const { addToCart } = useCart();
 
   useEffect(() => {
+    const productId = Number(params.id);
     fetchProduct(Number(params.id))
       .then(setProduct)
-      .catch(() => setProduct(null))
+      .catch(() => {
+        const fallback = MOCK_PRODUCTS.find((p) => p.id === productId) || null;
+        setProduct(fallback);
+      })
       .finally(() => setLoading(false));
   }, [params.id]);
 
