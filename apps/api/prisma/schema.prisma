@@ -13,6 +13,7 @@ model Product {
   price     Int
   imageUrl  String?
   stock     Int        @default(0)
+  version   Int        @default(0)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   orderItems OrderItem[]
@@ -33,11 +34,15 @@ model Order {
   userId    Int
   status    OrderStatus @default(PENDING)
   total     Int
+  discountAmount Int @default(0)
+  promotionId Int?
+  loyaltyAwardedAt DateTime?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   user      User        @relation(fields: [userId], references: [id])
   items     OrderItem[]
   payments  Payment[]
+  promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
 }
 
 model OrderItem {
@@ -47,6 +52,8 @@ model OrderItem {
   size      String
   qty       Int
   lineTotal Int
+  unitPrice Int?
+  toppings Json?
   createdAt DateTime @default(now())
   order     Order    @relation(fields: [orderId], references: [id])
   product   Product  @relation(fields: [productId], references: [id])
@@ -77,4 +84,25 @@ enum PaymentStatus {
   PENDING
   SUCCESS
   FAILED
+}
+
+// A small promotion table supports the discount-code requirement in Task 10.
+// FIXED.value is in VND; PERCENT.value is an integer percentage (0..100).
+// Validate ranges and expiry in NestJS services.
+model Promotion {
+  id Int @id @default(autoincrement())
+  code String @unique
+  type DiscountType
+  value Int
+  minOrderTotal Int @default(0)
+  startsAt DateTime?
+  expiresAt DateTime?
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  orders Order[]
+}
+
+enum DiscountType {
+  FIXED
+  PERCENT
 }

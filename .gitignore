@@ -1,10 +1,22 @@
+# Dependencies
 node_modules/
+
+# Build
 dist/
 .next/
+*.tsbuildinfo
+
+# Environment
 .env
 .env.local
+
+# Logs
 *.log
-*.tsbuildinfo
+
+# IDE / AI Tools
 .claude/
 .vexp/
 .vscode/
+
+# Personal workspace - ignore everything inside
+/work/

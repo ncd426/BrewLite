@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ProductCard } from '@/components/ProductCard';
 import { fetchProducts, type Product } from '@/lib/api';
+import { MOCK_PRODUCTS } from '@/lib/mock-data';
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -19,7 +20,8 @@ export default function HomePage() {
       })
       .catch((cause: unknown) => {
         if (mounted) {
-          setError(cause instanceof Error ? cause.message : 'Could not connect to the product service.');
+          console.warn('Backend chưa sẵn sàng, sử dụng dữ liệu mock', cause);
+          setProducts(MOCK_PRODUCTS);
         }
       })
       .finally(() => {
@@ -60,7 +62,7 @@ export default function HomePage() {
           Không có sản phẩm nào để hiển thị.
         </div>
       ) : (
-        <section className="grid gap-6 md:grid-cols-3">
+        <section className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {products.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
