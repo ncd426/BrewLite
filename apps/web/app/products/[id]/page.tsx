@@ -6,15 +6,36 @@ import { fetchProduct, type Product } from '@/lib/api';
 import { useCart } from '@/components/CartProvider';
 import { MOCK_PRODUCTS } from '@/lib/mock-data';
 
+const SIZE_OPTIONS = [
+  { id: 'S', name: 'Size S', surcharge: 0 },
+  { id: 'M', name: 'Size M', surcharge: 5000 },
+  { id: 'L', name: 'Size L', surcharge: 10000 },
+];
+
+const TOPPING_OPTIONS = [
+  { id: 'pearl', name: 'Trân châu', price: 6000 },
+  { id: 'jelly', name: 'Thạch', price: 6000 },
+  { id: 'macchiato', name: 'Kem Macchiato', price: 8000 },
+  { id: 'shot', name: 'Thêm Shot Espresso', price: 10000 },
+];
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState('M');
+  const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
+
+  const handleToggleTopping = (toppingId: string) => {
+    setSelectedToppings((prev) =>
+      prev.includes(toppingId)
+        ? prev.filter((id) => id !== toppingId)
+        : [...prev, toppingId]
+    );
+  };
   const { addToCart } = useCart();
 
   useEffect(() => {
     const productId = Number(params.id);
-    fetchProduct(Number(params.id))
+    fetchProduct(productId)
       .then(setProduct)
       .catch(() => {
         const fallback = MOCK_PRODUCTS.find((p) => p.id === productId) || null;
@@ -25,9 +46,13 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
   const totalPrice = useMemo(() => {
     if (!product) return 0;
-    const sizeMultiplier = selectedSize === 'S' ? 0.9 : selectedSize === 'L' ? 1.15 : 1;
-    return Math.round(product.price * sizeMultiplier);
-  }, [product, selectedSize]);
+    const sizeSurcharge = SIZE_OPTIONS.find((s) => s.id === selectedSize)?.surcharge || 0;
+    const toppingTotal = selectedToppings.reduce((sum, toppingId) => {
+      const topping = TOPPING_OPTIONS.find((t) => t.id === toppingId);
+      return sum + (topping ? topping.price : 0);
+    }, 0);
+    return product.price + sizeSurcharge + toppingTotal;
+  }, [product, selectedSize, selectedToppings]);
 
   if (loading) {
     return <main className="mx-auto max-w-2xl p-8 text-amber-700">Đang tải sản phẩm...</main>;
@@ -77,6 +102,35 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
               ))}
             </div>
           </div>
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">Chọn Topping</p>
+            <div className="space-y-2">
+              {TOPPING_OPTIONS.map((topping) => {
+                const isChecked = selectedToppings.includes(topping.id);
+                return (
+                  <label 
+                    key={topping.id} 
+                    className={`flex cursor-pointer items-center justify-between rounded-xl border p-2.5 text-sm transition ${
+                      isChecked ? 'border-amber-700 bg-amber-50' : 'border-amber-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleTopping(topping.id)}
+                      className="h-4 w-4 rounded text-amber-700"
+                      />
+                      <span>{topping.name}</span>
+                    </div>
+                    <span className="font-semibold text-amber-800">
+                      +{topping.price.toLocaleString('vi-VN')}đ
+                    </span>
+                  </label>
+                );
+            })}
+            </div>
+          </div>
 
           <div className="rounded-2xl bg-amber-50 p-4">
             <p className="text-sm text-gray-600">Giá dự kiến</p>
@@ -84,7 +138,15 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           </div>
 
           <button
-            onClick={() => addToCart(product, selectedSize)}
+            onClick={() => addToCart(
+              {
+              ...product,
+              price: totalPrice,
+              },
+              selectedSize
+            )
+          }
+
             className="w-full rounded-xl bg-amber-700 px-4 py-3 font-medium text-white"
           >
             Thêm vào giỏ hàng
