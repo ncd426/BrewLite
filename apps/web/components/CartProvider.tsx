@@ -16,8 +16,8 @@ type CartContextValue = {
   itemCount: number;
   total: number;
   addToCart: (product: Product, size?: string) => void;
-  updateQuantity: (id: number, quantity: number) => void;
-  removeFromCart: (id: number) => void;
+  updateQuantity: (id: number, quantity: number, name?: string) => void;
+  removeFromCart: (id: number, name?: string) => void;
   clearCart: () => void;
 };
 
@@ -42,11 +42,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items]);
 
   const addToCart = (product: Product, size = 'M') => {
+    const itemName = `${product.name} (${size})`;
+
     setItems((current) => {
-      const existing = current.find((item) => item.id === product.id && item.name === product.name);
+      const existing = current.find((item) => item.id === product.id && item.name === itemName);
       if (existing) {
         return current.map((item) =>
-          item.id === product.id && item.name === product.name
+          item.id === product.id && item.name === itemName
             ? { ...item, quantity: item.quantity + 1 }
             : item,
         );
@@ -56,7 +58,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         ...current,
         {
           id: product.id,
-          name: `${product.name} (${size})`,
+          name: itemName,
           price: product.price,
           imageUrl: product.imageUrl,
           quantity: 1,
@@ -65,16 +67,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const updateQuantity = (id: number, quantity: number) => {
+  const updateQuantity = (id: number, quantity: number, name?: string) => {
     setItems((current) =>
       current
-        .map((item) => (item.id === id ? { ...item, quantity: Math.max(0, quantity) } : item))
+        .map((item) => {
+          const isMatch = name ? item.id === id && item.name === name : item.id === id;
+          return isMatch ? { ...item, quantity: Math.max(0, quantity) } : item;
+        })
         .filter((item) => item.quantity > 0),
     );
   };
 
-  const removeFromCart = (id: number) => {
-    setItems((current) => current.filter((item) => item.id !== id));
+  const removeFromCart = (id: number, name?: string) => {
+    setItems((current) =>
+      current.filter((item) => (name ? !(item.id === id && item.name === name) : item.id !== id)),
+    );
   };
 
   const clearCart = () => setItems([]);
