@@ -25,6 +25,7 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('brewlite-cart');
@@ -35,11 +36,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setItems([]);
       }
     }
+    setIsLoaded(true);
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem('brewlite-cart', JSON.stringify(items));
-  }, [items]);
+    if (isLoaded) {
+      window.localStorage.setItem('brewlite-cart', JSON.stringify(items));
+    }
+  }, [isLoaded, items]);
 
   const addToCart = (product: Product, size = 'M') => {
     setItems((current) => {
