@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { fetchProduct, type Product } from '@/lib/api';
-import { useCart } from '@/components/CartProvider';
+import { useCartStore } from '@/lib/useCartStore';
 import { MOCK_PRODUCTS } from '@/lib/mock-data';
 
 const SIZE_OPTIONS = [
@@ -21,7 +21,7 @@ const TOPPING_OPTIONS = [
 export default function ProductDetailPage({ params }: { params: { id: string } }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedSize, setSelectedSize] = useState('M');
+  const [selectedSize, setSelectedSize] = useState<string>('S');
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
 
   const handleToggleTopping = (toppingId: string) => {
@@ -31,7 +31,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
         : [...prev, toppingId]
     );
   };
-  const { addToCart } = useCart();
+  const addToCart = useCartStore((state) => state.addToCart);
 
   useEffect(() => {
     const productId = Number(params.id);
@@ -138,15 +138,16 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           </div>
 
           <button
-            onClick={() => addToCart(
-              {
-              ...product,
-              price: totalPrice,
-              },
-              selectedSize
-            )
-          }
-
+            onClick={() =>
+              addToCart({
+                id: product.id,
+                name: product.name,
+                price: totalPrice,
+                imageUrl: product.imageUrl,
+                size: selectedSize,
+                toppings: selectedToppings,
+              })
+            }
             className="w-full rounded-xl bg-amber-700 px-4 py-3 font-medium text-white"
           >
             Thêm vào giỏ hàng

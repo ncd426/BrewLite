@@ -1,10 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useCart } from '@/components/CartProvider';
+import { useCartStore } from '@/lib/useCartStore';
 
 export default function CartPage() {
-  const { items, total, updateQuantity, removeFromCart, clearCart } = useCart();
+  const items = useCartStore((state) => state.items);
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const removeFromCart = useCartStore((state) => state.removeFromCart);
+  const clearCart = useCartStore((state) => state.clearCart);
+  const total = useCartStore((state) => state.getTotalPrice());
 
   return (
     <main className="mx-auto max-w-4xl p-8">
@@ -28,33 +32,21 @@ export default function CartPage() {
       ) : (
         <div className="space-y-4">
           {items.map((item) => (
-            <div key={`${item.id}-${item.name}`} className="flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-100">
-              <img src={item.imageUrl} alt={item.name} className="h-20 w-20 rounded-xl object-cover" />
-              <div className="flex-1">
-                <h2 className="text-lg font-semibold">{item.name}</h2>
-                <p className="text-sm text-gray-600">{item.price.toLocaleString('vi-VN')}đ / sản phẩm</p>
+            <div key={item.key} className="flex items-center justify-between border-b py-3">
+              <div>
+                <h3 className="font-semibold">{item.name} ({item.size})</h3>
+                {item.toppings.length > 0 && (
+                  <p className="text-xs text-amber-800">Topping: {item.toppings.join(', ')}</p>
+                )}
+                <p className="text-sm text-gray-600">{item.price.toLocaleString('vi-VN')}đ</p>
               </div>
+
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => updateQuantity(item.id, item.quantity - 1, item.name)}
-                  className="h-8 w-8 rounded-full border border-amber-200 text-lg"
-                >
-                  -
-                </button>
-                <span className="min-w-6 text-center font-medium">{item.quantity}</span>
-                <button
-                  onClick={() => updateQuantity(item.id, item.quantity + 1, item.name)}
-                  className="h-8 w-8 rounded-full border border-amber-200 text-lg"
-                >
-                  +
-                </button>
+                <button onClick={() => updateQuantity(item.key, item.quantity - 1)}>-</button>
+                <span>{item.quantity}</span>
+                <button onClick={() => updateQuantity(item.key, item.quantity + 1)}>+</button>
+                <button onClick={() => removeFromCart(item.key)} className="text-red-500">Xóa</button>
               </div>
-              <button 
-                onClick={() => removeFromCart(item.id, item.name)} 
-                className="text-sm text-red-500"
-              >
-                Xóa
-              </button>
             </div>
           ))}
 
