@@ -23,11 +23,15 @@ NestJS API for the BrewLite beverage ordering application.
 
 - `GET /products`
 - `GET /products/:id`
-- `POST /auth/register`
-- `POST /auth/login`
-- `POST /orders`
-- `GET /orders/me`
+- `POST /auth/register` — body: `{"email":"name@example.com","password":"secret123"}`
+- `POST /auth/login` — body: `{"email":"name@example.com","password":"secret123"}`
+- `POST /orders` and `GET /orders/me` — require `Authorization: Bearer <accessToken>`
 - `POST /payments`
+
+Registration and login return an `accessToken`. Passwords are hashed with
+bcrypt and user records are stored in PostgreSQL. Invalid login credentials
+return `401 Unauthorized`; order ownership is taken from the verified JWT, not
+from the request body.
 
 ## Local development
 
