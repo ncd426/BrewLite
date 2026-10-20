@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type UserRecord = {
   id: number;
@@ -9,22 +10,29 @@ export type UserRecord = {
 
 @Injectable()
 export class UsersService {
-  private readonly users = new Map<string, UserRecord>();
+  constructor(private readonly prisma: PrismaService) {}
 
-  create(user: Omit<UserRecord, 'id'> & { id?: number }): UserRecord {
-    const id = user.id ?? this.users.size + 1;
-    const record: UserRecord = {
-      id,
-      email: user.email,
-      passwordHash: user.passwordHash,
-      loyaltyPoints: user.loyaltyPoints ?? 0,
-    };
-
-    this.users.set(record.email, record);
-    return record;
+  create(user: Pick<UserRecord, 'email' | 'passwordHash'>): Promise<UserRecord> {
+    return this.prisma.user.create({
+      data: user,
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        loyaltyPoints: true,
+      },
+    });
   }
 
-  findByEmail(email: string): UserRecord | undefined {
-    return [...this.users.values()].find((user) => user.email === email);
+  findByEmail(email: string): Promise<UserRecord | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        loyaltyPoints: true,
+      },
+    });
   }
 }

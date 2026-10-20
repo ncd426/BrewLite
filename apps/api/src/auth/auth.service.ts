@@ -1,7 +1,12 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UsersService } from '../users/users.service';
+import { UserRecord, UsersService } from '../users/users.service';
 
 @Injectable()
 export class AuthService {
@@ -11,17 +16,28 @@ export class AuthService {
   ) {}
 
   async register(email: string, password: string) {
-    const existing = this.usersService.findByEmail(email);
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await this.usersService.findByEmail(normalizedEmail);
     if (existing) {
       throw new ConflictException('Email already registered');
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = this.usersService.create({
-      email,
-      passwordHash,
-      loyaltyPoints: 0,
-    });
+    let user: UserRecord;
+    try {
+      user = await this.usersService.create({
+        email: normalizedEmail,
+        passwordHash,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Email already registered');
+      }
+      throw error;
+    }
 
     return {
       id: user.id,
@@ -31,7 +47,9 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    const user = this.usersService.findByEmail(email);
+    const user = await this.usersService.findByEmail(
+      email.trim().toLowerCase(),
+    );
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
