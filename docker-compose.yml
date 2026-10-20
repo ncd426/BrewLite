@@ -6,9 +6,9 @@ services:
     environment:
       POSTGRES_DB: brewlite
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: JokoDKwin1!
+      POSTGRES_PASSWORD: brewlite-secret
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,7 +28,7 @@ services:
     ports:
       - '4000:4000'
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/brewlite}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:brewlite-secret@localhost:5433/brewlite}
       JWT_SECRET: ${JWT_SECRET:-local-only-change-me}
     depends_on:
       db:
