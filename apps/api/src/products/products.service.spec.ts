@@ -1,11 +1,15 @@
 import { jest } from '@jest/globals';
+import type { Product } from './products.service';
 import { NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductsService } from './products.service';
 
 describe('ProductsService (Prisma)', () => {
-  const findMany = jest.fn();
-  const findUnique = jest.fn();
+  const findMany = jest.fn<() => Promise<Product[]>>();
+
+  const findUnique = jest.fn<
+    () => Promise<Product | null>
+  >();
   const prisma = {
     product: { findMany, findUnique },
   } as unknown as PrismaService;

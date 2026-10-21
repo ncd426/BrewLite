@@ -20,8 +20,12 @@ describe('AuthService', () => {
   });
 
   it('hashes a new account password and returns a signed JWT', async () => {
-    usersService.findByEmail = jest.fn().mockResolvedValue(null);
-    usersService.create = jest.fn().mockImplementation(async (user) => ({
+    usersService.findByEmail = jest
+    .fn<UsersService['findByEmail']>()
+    .mockResolvedValue(null);
+    usersService.create = jest
+    .fn<UsersService['create']>()
+    .mockImplementation(async (user) => ({
       id: 12,
       ...user,
       loyaltyPoints: 0,
@@ -36,7 +40,9 @@ describe('AuthService', () => {
       accessToken: 'signed-token',
     });
 
-    const [createdUser] = (usersService.create as jest.Mock).mock.calls[0];
+    const createdUser = (
+    usersService.create as jest.MockedFunction<UsersService['create']>
+  ).mock.calls[0][0];
     expect(createdUser.name).toBe('Person Example');
     expect(createdUser.email).toBe('person@example.com');
     expect(createdUser.passwordHash).not.toBe('secret123');
@@ -45,7 +51,7 @@ describe('AuthService', () => {
   });
 
   it('rejects an incorrect password with 401 Unauthorized', async () => {
-    usersService.findByEmail = jest.fn().mockResolvedValue({
+    usersService.findByEmail = jest.fn<UsersService['findByEmail']>().mockResolvedValue({
       id: 12,
       name: 'Person Example',
       email: 'person@example.com',
@@ -59,7 +65,9 @@ describe('AuthService', () => {
   });
 
   it('returns the saved name after a successful login', async () => {
-    usersService.findByEmail = jest.fn().mockResolvedValue({
+    usersService.findByEmail = jest
+    .fn<UsersService['findByEmail']>()
+    .mockResolvedValue({
       id: 12,
       name: 'Person Example',
       email: 'person@example.com',
