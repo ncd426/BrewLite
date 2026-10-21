@@ -15,7 +15,8 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async register(email: string, password: string) {
+  async register(name: string, email: string, password: string) {
+    const normalizedName = name.trim();
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.usersService.findByEmail(normalizedEmail);
     if (existing) {
@@ -26,6 +27,7 @@ export class AuthService {
     let user: UserRecord;
     try {
       user = await this.usersService.create({
+        name: normalizedName,
         email: normalizedEmail,
         passwordHash,
       });
@@ -41,6 +43,7 @@ export class AuthService {
 
     return {
       id: user.id,
+      name: user.name,
       email: user.email,
       accessToken: this.jwtService.sign({ sub: user.id, email: user.email }),
     };
@@ -61,6 +64,7 @@ export class AuthService {
 
     return {
       id: user.id,
+      name: user.name,
       email: user.email,
       accessToken: this.jwtService.sign({ sub: user.id, email: user.email }),
     };

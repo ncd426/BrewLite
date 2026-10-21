@@ -28,14 +28,16 @@ describe('AuthService', () => {
     }));
 
     await expect(
-      authService.register(' Person@Example.com ', 'secret123'),
+      authService.register(' Person Example ', ' Person@Example.com ', 'secret123'),
     ).resolves.toEqual({
       id: 12,
+      name: 'Person Example',
       email: 'person@example.com',
       accessToken: 'signed-token',
     });
 
     const [createdUser] = (usersService.create as jest.Mock).mock.calls[0];
+    expect(createdUser.name).toBe('Person Example');
     expect(createdUser.email).toBe('person@example.com');
     expect(createdUser.passwordHash).not.toBe('secret123');
     await expect(bcrypt.compare('secret123', createdUser.passwordHash)).resolves
@@ -45,6 +47,7 @@ describe('AuthService', () => {
   it('rejects an incorrect password with 401 Unauthorized', async () => {
     usersService.findByEmail = jest.fn().mockResolvedValue({
       id: 12,
+      name: 'Person Example',
       email: 'person@example.com',
       passwordHash: await bcrypt.hash('correct-password', 10),
       loyaltyPoints: 0,
@@ -53,5 +56,24 @@ describe('AuthService', () => {
     await expect(
       authService.login('person@example.com', 'incorrect-password'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('returns the saved name after a successful login', async () => {
+    usersService.findByEmail = jest.fn().mockResolvedValue({
+      id: 12,
+      name: 'Person Example',
+      email: 'person@example.com',
+      passwordHash: await bcrypt.hash('secret123', 10),
+      loyaltyPoints: 0,
+    });
+
+    await expect(
+      authService.login('person@example.com', 'secret123'),
+    ).resolves.toEqual({
+      id: 12,
+      name: 'Person Example',
+      email: 'person@example.com',
+      accessToken: 'signed-token',
+    });
   });
 });

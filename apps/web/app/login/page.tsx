@@ -7,6 +7,7 @@ import { login, register, saveAccessToken } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
@@ -20,9 +21,9 @@ export default function LoginPage() {
 
     try {
       const auth = isRegistering
-        ? await register(email, password)
+        ? await register(name, email, password)
         : await login(email, password);
-      saveAccessToken(auth.accessToken);
+      saveAccessToken(auth.accessToken, auth.name, auth.email);
       router.replace('/cart');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể xác thực tài khoản.');
@@ -46,6 +47,24 @@ export default function LoginPage() {
             : 'Đăng nhập để tiếp tục đặt hàng.'}
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegistering && (
+            <div>
+              <label htmlFor="name" className="mb-1 block text-sm font-medium">
+                Họ và tên
+              </label>
+              <input
+                id="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100"
+                type="text"
+                placeholder="Nguyễn Văn An"
+                required
+                maxLength={100}
+                autoComplete="name"
+              />
+            </div>
+          )}
           <div>
             <label htmlFor="email" className="mb-1 block text-sm font-medium">Email</label>
             <input

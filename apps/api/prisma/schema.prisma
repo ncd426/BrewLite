@@ -21,6 +21,7 @@ model Product {
 
 model User {
   id            Int      @id @default(autoincrement())
+  name          String   @default("")
   email         String   @unique
   passwordHash  String
   loyaltyPoints Int      @default(0)
