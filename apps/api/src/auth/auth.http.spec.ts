@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { OrdersController } from '../orders/orders.controller';
 import { OrdersService } from '../orders/orders.service';
+import { UsersController } from '../users/users.controller';
 import { UsersService } from '../users/users.service';
 
 describe('Authentication and order authorization (HTTP)', () => {
@@ -19,6 +20,7 @@ describe('Authentication and order authorization (HTTP)', () => {
   const usersService = {
     create: jest.fn(),
     findByEmail: jest.fn(),
+    findPublicById: jest.fn(),
   };
   let app: INestApplication<App>;
   let jwtService: JwtService;
@@ -29,7 +31,7 @@ describe('Authentication and order authorization (HTTP)', () => {
         PassportModule.register({ defaultStrategy: 'jwt' }),
         JwtModule.register({ secret: jwtSecret, signOptions: { expiresIn: '1h' } }),
       ],
-      controllers: [AuthController, OrdersController],
+      controllers: [AuthController, OrdersController, UsersController],
       providers: [
         AuthService,
         OrdersService,
@@ -62,11 +64,16 @@ describe('Authentication and order authorization (HTTP)', () => {
 
     const response = await request(app.getHttpServer())
       .post('/auth/register')
-      .send({ email: 'person@example.com', password: 'secret123' })
+      .send({
+        name: 'Person Example',
+        email: 'person@example.com',
+        password: 'secret123',
+      })
       .expect(201);
 
     expect(response.body).toMatchObject({
       id: 12,
+      name: 'Person Example',
       email: 'person@example.com',
     });
     expect(typeof response.body.accessToken).toBe('string');
@@ -91,8 +98,36 @@ describe('Authentication and order authorization (HTTP)', () => {
   it('validates email format and minimum registration password length', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send({ email: 'not-an-email', password: '123' })
+      .send({ name: '', email: 'not-an-email', password: '123' })
       .expect(400);
+  });
+
+  it('requires a bearer token to read the current user profile', async () => {
+    await request(app.getHttpServer()).get('/users/me').expect(401);
+  });
+
+  it('returns the authenticated user profile without private fields', async () => {
+    usersService.findPublicById.mockResolvedValue({
+      id: 42,
+      name: 'Person Example',
+      email: 'person@example.com',
+      loyaltyPoints: 5,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    const token = jwtService.sign({ sub: 42, email: 'person@example.com' });
+
+    const response = await request(app.getHttpServer())
+      .get('/users/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: 42,
+      name: 'Person Example',
+      email: 'person@example.com',
+      loyaltyPoints: 5,
+    });
+    expect(usersService.findPublicById).toHaveBeenCalledWith(42);
   });
 
   it('rejects order creation without a bearer token', async () => {

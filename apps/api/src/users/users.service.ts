@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export type UserRecord = {
   id: number;
+  name: string;
   email: string;
   passwordHash: string;
   loyaltyPoints: number;
@@ -12,11 +13,14 @@ export type UserRecord = {
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(user: Pick<UserRecord, 'email' | 'passwordHash'>): Promise<UserRecord> {
+  create(
+    user: Pick<UserRecord, 'name' | 'email' | 'passwordHash'>,
+  ): Promise<UserRecord> {
     return this.prisma.user.create({
       data: user,
       select: {
         id: true,
+        name: true,
         email: true,
         passwordHash: true,
         loyaltyPoints: true,
@@ -29,9 +33,23 @@ export class UsersService {
       where: { email },
       select: {
         id: true,
+        name: true,
         email: true,
         passwordHash: true,
         loyaltyPoints: true,
+      },
+    });
+  }
+
+  findPublicById(id: number) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        loyaltyPoints: true,
+        createdAt: true,
       },
     });
   }
