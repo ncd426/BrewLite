@@ -10,8 +10,17 @@ export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4
 
 export type AuthResponse = {
   id: number;
+  name: string;
   email: string;
   accessToken: string;
+};
+
+export type UserProfile = {
+  id: number;
+  name: string;
+  email: string;
+  loyaltyPoints: number;
+  createdAt: string;
 };
 
 export type OrderItemInput = {
@@ -30,18 +39,37 @@ export type OrderResponse = {
 };
 
 const ACCESS_TOKEN_KEY = 'brewlite-access-token';
+const USER_NAME_KEY = 'brewlite-user-name';
+const USER_EMAIL_KEY = 'brewlite-user-email';
+const AUTH_STATE_EVENT = 'brewlite-auth-change';
 
 export function getAccessToken(): string | null {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-export function saveAccessToken(token: string): void {
+export function getUserEmail(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(USER_EMAIL_KEY);
+}
+
+export function getUserName(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(USER_NAME_KEY);
+}
+
+export function saveAccessToken(token: string, name: string, email: string): void {
   window.localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  window.localStorage.setItem(USER_NAME_KEY, name);
+  window.localStorage.setItem(USER_EMAIL_KEY, email);
+  window.dispatchEvent(new Event(AUTH_STATE_EVENT));
 }
 
 export function clearAccessToken(): void {
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.localStorage.removeItem(USER_NAME_KEY);
+  window.localStorage.removeItem(USER_EMAIL_KEY);
+  window.dispatchEvent(new Event(AUTH_STATE_EVENT));
 }
 
 export async function apiRequest<T>(
@@ -99,13 +127,18 @@ export async function login(email: string, password: string): Promise<AuthRespon
 }
 
 export async function register(
+  name: string,
   email: string,
   password: string,
 ): Promise<AuthResponse> {
   return apiRequest<AuthResponse>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ name, email, password }),
   });
+}
+
+export async function fetchMyProfile(): Promise<UserProfile> {
+  return apiRequest<UserProfile>('/users/me');
 }
 
 export async function createOrder(
