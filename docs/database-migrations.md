@@ -103,12 +103,12 @@ WHERE schemaname='public' AND tablename='Payment'
 ## What still needs backend implementation?
 
 The uploaded `ProductsService` returns a hard-coded in-memory menu;
-`UsersService` stores users in a Map; `OrdersService` returns a random order ID;
-`PaymentsService` simulates a successful payment. These services do not yet
-persist through Prisma. Optimistic locking requires a transaction and a
-conditional update with `version` increment; idempotent processing requires
-handling existing `idempotencyKey` attempts and their results. This patch
-intentionally does not modify any contributor's NestJS business logic.
+`UsersService` stores users in a Map. The payments API now reads the order
+total from Prisma, records each result in `Payment`, and transactionally updates
+the authenticated owner's order to `PAID` or `PAYMENT_FAILED`. Its
+`simulateFailure` request flag exercises the failed-payment path. The generated
+`idempotencyKey` is unique per recorded attempt; replaying the same client
+request with the original result is not implemented.
 
 ## Security note
 

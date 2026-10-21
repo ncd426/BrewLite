@@ -1,30 +1,52 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { IsIn, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import {
+  Body,
+  Controller,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  Min,
+} from 'class-validator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PaymentsService } from './payments.service';
 
 class PaymentDto {
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   orderId: number;
 
-  @IsNumber()
-  amount: number;
-
-  @IsString()
-  @IsNotEmpty()
   @IsIn(['MOMO', 'CARD'])
   method: 'MOMO' | 'CARD';
 
-  @IsString()
-  @IsNotEmpty()
-  idempotencyKey: string;
+  @IsOptional()
+  @IsBoolean()
+  simulateFailure?: boolean;
 }
+
+type AuthenticatedUser = {
+  userId: number;
+};
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
-  pay(@Body() dto: PaymentDto) {
-    return this.paymentsService.processPayment(dto.orderId, dto.amount, dto.method, dto.idempotencyKey);
+  pay(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PaymentDto,
+  ) {
+    return this.paymentsService.processPayment(
+      dto.orderId,
+      user.userId,
+      dto.method,
+      dto.simulateFailure,
+    );
   }
 }
