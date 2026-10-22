@@ -27,7 +27,12 @@ NestJS API for the BrewLite beverage ordering application.
 - `POST /auth/login` — body: `{"email":"name@example.com","password":"secret123"}`
 - `GET /users/me` — returns the authenticated user's profile; requires `Authorization: Bearer <accessToken>`
 - `POST /orders` and `GET /orders/me` — require `Authorization: Bearer <accessToken>`
-- `POST /payments`
+- `POST /payments` — requires `Authorization: ******`; body:
+  `{"orderId":42,"method":"MOMO"}` (`method` is `MOMO` for wallet or `CARD`
+  for card). The API uses the stored order total and records the outcome in
+  `Payment`. For local testing, add `"simulateFailure":true` to store a failed
+  payment and move the order to `PAYMENT_FAILED`; normal success moves it to
+  `PAID`.
 
 Registration and login return an `accessToken`. Passwords are hashed with
 bcrypt and user records are stored in PostgreSQL. Invalid login credentials

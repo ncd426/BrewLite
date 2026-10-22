@@ -17,6 +17,7 @@ dist/
 .claude/
 .vexp/
 .vscode/
+.github/copilot-instructions.md
 
 # Personal workspace - ignore everything inside
 /work/
