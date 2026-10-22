@@ -2,8 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { createOrder, getAccessToken } from '@/lib/api';
+import { getAccessToken } from '@/lib/api';
 import { useCartStore } from '@/lib/useCartStore';
 
 export default function CartPage() {
@@ -13,38 +12,13 @@ export default function CartPage() {
   const removeFromCart = useCartStore((state) => state.removeFromCart);
   const clearCart = useCartStore((state) => state.clearCart);
   const total = useCartStore((state) => state.getTotalPrice());
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [orderMessage, setOrderMessage] = useState<string | null>(null);
-  const [orderError, setOrderError] = useState<string | null>(null);
 
-  const handleCheckout = async () => {
+  const handleProceedToCheckout = () => {
     if (!getAccessToken()) {
-      router.push('/login?next=%2Fcart');
+      router.push('/login?next=%2Fcheckout');
       return;
     }
-
-    setIsSubmitting(true);
-    setOrderError(null);
-    setOrderMessage(null);
-
-    try {
-      const order = await createOrder(
-        items.map((item) => ({
-          productId: item.id,
-          size: item.size,
-          qty: item.quantity,
-          price: item.price,
-        })),
-      );
-      clearCart();
-      setOrderMessage(`Đặt hàng thành công! Mã đơn: ${order.orderId}`);
-    } catch (cause) {
-      setOrderError(
-        cause instanceof Error ? cause.message : 'Không thể gửi đơn hàng.',
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+    router.push('/checkout' as any);
   };
 
   return (
@@ -52,23 +26,17 @@ export default function CartPage() {
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-3xl font-bold">Giỏ hàng</h1>
         {items.length > 0 && (
-          <button onClick={clearCart} className="text-sm font-medium text-amber-700">
+          <button onClick={clearCart} className="text-sm font-medium text-amber-700 hover:underline">
             Xóa tất cả
           </button>
         )}
       </div>
 
-      {orderMessage && (
-        <p role="status" className="mb-4 rounded-xl bg-green-100 p-3 text-sm text-green-900">
-          {orderMessage}
-        </p>
-      )}
-
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-amber-300 bg-white p-8 text-center">
           <p className="text-lg font-medium">Giỏ hàng hiện đang trống.</p>
           <p className="mt-2 text-sm text-gray-600">Thêm sản phẩm từ menu để tiếp tục đặt hàng.</p>
-          <Link href="/" className="mt-4 inline-block rounded-xl bg-amber-700 px-4 py-2 text-white">
+          <Link href="/" className="mt-4 inline-block rounded-xl bg-amber-700 px-4 py-2 text-white transition hover:bg-amber-800">
             Quay lại menu
           </Link>
         </div>
@@ -84,11 +52,28 @@ export default function CartPage() {
                 <p className="text-sm text-gray-600">{item.price.toLocaleString('vi-VN')}đ</p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button onClick={() => updateQuantity(item.key, item.quantity - 1)}>-</button>
-                <span>{item.quantity}</span>
-                <button onClick={() => updateQuantity(item.key, item.quantity + 1)}>+</button>
-                <button onClick={() => removeFromCart(item.key)} className="text-red-500">Xóa</button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center rounded-lg border border-gray-200">
+                  <button
+                    onClick={() => updateQuantity(item.key, item.quantity - 1)}
+                    className="px-2.5 py-1 text-sm font-bold text-gray-600 hover:bg-gray-100"
+                  >
+                    -
+                  </button>
+                  <span className="px-2 text-sm font-medium">{item.quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(item.key, item.quantity + 1)}
+                    className="px-2.5 py-1 text-sm font-bold text-gray-600 hover:bg-gray-100"
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  onClick={() => removeFromCart(item.key)}
+                  className="text-sm text-red-500 hover:underline"
+                >
+                  Xóa
+                </button>
               </div>
             </div>
           ))}
@@ -98,22 +83,13 @@ export default function CartPage() {
               <span>Tổng thanh toán</span>
               <span>{total.toLocaleString('vi-VN')}đ</span>
             </div>
-            {orderError && (
-              <p role="alert" className="mt-4 rounded-xl bg-red-100 p-3 text-sm text-red-800">
-                {orderError}
-              </p>
-            )}
+
             <button
               type="button"
-              onClick={handleCheckout}
-              disabled={isSubmitting}
-              className="mt-4 rounded-xl bg-white px-4 py-2 font-medium text-amber-900 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={handleProceedToCheckout}
+              className="mt-4 block w-full rounded-xl bg-white px-4 py-3 text-center font-medium text-amber-900 transition hover:bg-amber-50"
             >
-              {isSubmitting
-                ? 'Đang gửi đơn...'
-                : getAccessToken()
-                  ? 'Đặt hàng'
-                  : 'Đăng nhập để đặt hàng'}
+              {getAccessToken() ? 'Tiến hành thanh toán' : 'Đăng nhập để thanh toán'}
             </button>
           </div>
         </div>

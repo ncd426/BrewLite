@@ -149,3 +149,32 @@ export async function createOrder(
     body: JSON.stringify({ items }),
   });
 }
+
+export type PaymentMethod = 'MOMO' | 'CARD';
+
+export type PaymentPayload = {
+  orderId: number;
+  method: PaymentMethod;
+};
+
+export type PaymentResponse = {
+  paymentId?: number;
+  orderId: number;
+  status: 'PAID' | 'PAYMENT_FAILED';
+  method?: PaymentMethod;
+  amount?: number;
+  message?: string;
+};
+
+export async function processPayment(
+  payload: PaymentPayload,
+  idempotencyKey: string,
+): Promise<PaymentResponse> {
+  return apiRequest<PaymentResponse>('/payments', {
+    method: 'POST',
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+    },
+    body: JSON.stringify(payload),
+  });
+}
