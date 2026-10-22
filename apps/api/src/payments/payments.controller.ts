@@ -5,7 +5,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-
 import {
   IsBoolean,
   IsIn,
@@ -27,20 +26,24 @@ class PaymentDto {
   @Min(1)
   orderId!: number;
 
+  // Tùy chọn để tương thích với main.
+  // Nếu không gửi, lấy total từ database.
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(2147483647)
-  amount!: number;
+  amount?: number;
 
   @IsIn(['MOMO', 'CARD'])
   method!: 'MOMO' | 'CARD';
 
+  // Khuyến nghị client luôn cung cấp key.
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(128)
-  idempotencyKey!: string;
+  idempotencyKey?: string;
 
-  // Chỉ dùng để mô phỏng lỗi thanh toán khi demo.
   @IsOptional()
   @IsBoolean()
   simulateFailure?: boolean;
@@ -48,7 +51,7 @@ class PaymentDto {
 
 type AuthenticatedUser = {
   userId: number;
-  email: string;
+  email?: string;
 };
 
 @Controller('payments')

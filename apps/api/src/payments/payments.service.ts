@@ -1,4 +1,5 @@
 
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -6,7 +7,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import {
   OrderStatus,
   Payment,
@@ -32,6 +32,7 @@ export class PaymentsService {
           : OrderStatus.PENDING;
 
     return {
+      id: payment.id,
       orderId: payment.orderId,
       amount: payment.amount,
       method: payment.method,
@@ -45,18 +46,21 @@ export class PaymentsService {
   async processPayment(
     userId: number,
     orderId: number,
-    amount: number,
+    amount: number | undefined,
     method: PaymentMethod,
-    idempotencyKey: string,
+    idempotencyKey: string | undefined,
     simulateFailure = false,
   ) {
-    if (!idempotencyKey.trim()) {
+    // Nếu client không gửi key, tự sinh key.
+    // Để đảm bảo idempotency khi retry, client nên gửi key.
+    const key = idempotencyKey ?? randomUUID();
+
+    if (!key.trim()) {
       throw new BadRequestException(
         'Idempotency key is required',
       );
     }
 
-    // Không cho client giả lập kết quả trong production.
     if (
       simulateFailure &&
       process.env.NODE_ENV === 'production'
@@ -90,15 +94,18 @@ export class PaymentsService {
           );
         }
 
-        // Cùng key phải trả lại kết quả thanh toán cũ.
+        // Luôn dùng tổng tiền từ database.
+        const paymentAmount = amount ?? order.total;
+
+        // Kiểm tra giao dịch có cùng idempotency key.
         const existing = await tx.payment.findUnique({
-          where: { idempotencyKey },
+          where: { idempotencyKey: key },
         });
 
         if (existing) {
           if (
             existing.orderId !== orderId ||
-            existing.amount !== amount ||
+            existing.amount !== paymentAmount ||
             existing.method !== method
           ) {
             throw new ConflictException(
@@ -110,74 +117,73 @@ export class PaymentsService {
         }
 
         // Không tin số tiền do frontend gửi.
-        if (order.total !== amount) {
+        if (paymentAmount !== order.total) {
           throw new BadRequestException(
             'Payment amount does not match order total',
           );
         }
 
-        // Tạo payment PENDING trước để giữ unique key.
-        // Nếu transaction lỗi, bản ghi này sẽ rollback.
+        // Ghi Payment PENDING trong transaction.
         const payment = await tx.payment.create({
           data: {
-            orderId,
-            amount,
+            orderId: order.id,
+            amount: order.total,
             method,
-            idempotencyKey,
+            idempotencyKey: key,
             status: PaymentStatus.PENDING,
           },
         });
 
-        // Nếu lần trước thất bại, đưa đơn về PENDING
-        // trước khi thử thanh toán lại.
+        // Thanh toán thất bại trước đó:
+        // PAYMENT_FAILED -> PENDING
         if (order.status === OrderStatus.PAYMENT_FAILED) {
           await transitionOrderStatus(
             tx,
-            orderId,
+            order.id,
             OrderStatus.PENDING,
           );
         }
 
-        // Mock payment: mặc định thành công.
-        // simulateFailure chỉ dành cho demo/test.
         const nextStatus = simulateFailure
           ? OrderStatus.PAYMENT_FAILED
           : OrderStatus.PAID;
 
-        const paymentStatus = simulateFailure
+        const nextPaymentStatus = simulateFailure
           ? PaymentStatus.FAILED
           : PaymentStatus.SUCCESS;
 
-        // Bắt buộc kiểm tra State Machine.
+        // State Machine kiểm tra chuyển trạng thái.
         await transitionOrderStatus(
           tx,
-          orderId,
+          order.id,
           nextStatus,
         );
 
         const updatedPayment = await tx.payment.update({
           where: { id: payment.id },
-          data: { status: paymentStatus },
+          data: {
+            status: nextPaymentStatus,
+          },
         });
 
         return this.formatPayment(updatedPayment);
       });
     } catch (error) {
-      // Trường hợp hai request dùng cùng key đồng thời.
-      // Unique constraint chỉ cho một payment được tạo.
+      // Xử lý unique constraint khi hai request
+      // dùng cùng idempotency key đồng thời.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         const existing = await this.prisma.payment.findUnique({
-          where: { idempotencyKey },
+          where: { idempotencyKey: key },
         });
 
         if (
           existing &&
           existing.orderId === orderId &&
-          existing.amount === amount &&
-          existing.method === method
+          existing.method === method &&
+          (amount === undefined || existing.amount === amount)
         ) {
           return this.formatPayment(existing);
         }
