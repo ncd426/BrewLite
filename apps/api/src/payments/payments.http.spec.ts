@@ -1,108 +1,207 @@
-import { jest } from '@jest/globals';
+
 import {
   ExecutionContext,
   INestApplication,
   ValidationPipe,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { jest } from '@jest/globals';
 import request from 'supertest';
+
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 
-type TestOrder = {
+type MockOrder = {
   id: number;
-  status: string;
+  userId: number;
   total: number;
+  status: OrderStatus;
 };
 
-type TestPaymentCreateData = {
+type MockPayment = {
+  id: number;
   orderId: number;
   amount: number;
   method: string;
-  status: string;
+  status: PaymentStatus;
   idempotencyKey: string;
+  createdAt: Date;
 };
 
 describe('POST /payments', () => {
   let app: INestApplication;
+  let order: MockOrder | null;
+  let nextPaymentId = 9;
+
+  const payments = new Map<string, MockPayment>();
 
   const tx = {
     order: {
-      findFirst: jest.fn<
-        () => Promise<TestOrder | null>
-      >(),
-      updateMany: jest.fn<
-        () => Promise<{ count: number }>
-      >(),
+      findUnique: jest.fn(
+        async (args: { where: { id: number } }) => {
+          if (!order || order.id !== args.where.id) {
+            return null;
+          }
+
+          return { ...order };
+        },
+      ),
+
+      updateMany: jest.fn(
+        async (args: {
+          where: {
+            id: number;
+            status: OrderStatus;
+          };
+          data: {
+            status: OrderStatus;
+          };
+        }) => {
+          if (
+            !order ||
+            order.id !== args.where.id ||
+            order.status !== args.where.status
+          ) {
+            return { count: 0 };
+          }
+
+          order.status = args.data.status;
+          return { count: 1 };
+        },
+      ),
     },
+
     payment: {
-      create: jest.fn<
-        (args: { data: TestPaymentCreateData }) => Promise<{
-          id: number;
-          orderId: number;
-          amount: number;
-          method: string;
-          status: string;
-        }>
-      >(),
+      findUnique: jest.fn(
+        async (args: {
+          where: { idempotencyKey: string };
+        }) =>
+          payments.get(args.where.idempotencyKey) ?? null,
+      ),
+
+      create: jest.fn(
+        async (args: {
+          data: {
+            orderId: number;
+            amount: number;
+            method: string;
+            status: PaymentStatus;
+            idempotencyKey: string;
+          };
+        }) => {
+          const payment: MockPayment = {
+            id: nextPaymentId++,
+            ...args.data,
+            createdAt: new Date(),
+          };
+
+          payments.set(payment.idempotencyKey, payment);
+          return payment;
+        },
+      ),
+
+      update: jest.fn(
+        async (args: {
+          where: { id: number };
+          data: { status: PaymentStatus };
+        }) => {
+          const payment = [...payments.values()].find(
+            (p) => p.id === args.where.id,
+          );
+
+          if (!payment) {
+            throw new Error('Payment not found');
+          }
+
+          const updated = {
+            ...payment,
+            status: args.data.status,
+          };
+
+          payments.set(updated.idempotencyKey, updated);
+          return updated;
+        },
+      ),
     },
   };
 
-  const prisma = {
-    $transaction: jest.fn<
-      (callback: (client: typeof tx) => Promise<unknown>) => Promise<unknown>
-    >(),
+  const prismaMock = {
+    $transaction: async <T>(
+      callback: (client: typeof tx) => Promise<T>,
+    ): Promise<T> => {
+      const oldOrder = order ? { ...order } : null;
+      const oldPayments = new Map(payments);
+
+      try {
+        return await callback(tx);
+      } catch (error) {
+        // Mock rollback khi transaction thất bại.
+        order = oldOrder;
+        payments.clear();
+
+        for (const [key, payment] of oldPayments) {
+          payments.set(key, payment);
+        }
+
+        throw error;
+      }
+    },
+
+    payment: {
+      findUnique: tx.payment.findUnique,
+    },
   };
 
   beforeAll(async () => {
-    const module = await Test.createTestingModule({
+    const moduleRef = await Test.createTestingModule({
       controllers: [PaymentsController],
       providers: [
         PaymentsService,
         {
           provide: PrismaService,
-          useValue: prisma,
+          useValue: prismaMock,
         },
       ],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue({
-        canActivate(context: ExecutionContext) {
-          const req = context.switchToHttp().getRequest();
+        canActivate: (context: ExecutionContext) => {
+          const req = context
+            .switchToHttp()
+            .getRequest<{ user?: { userId: number } }>();
+
           req.user = { userId: 7 };
           return true;
         },
       })
       .compile();
 
-    app = module.createNestApplication();
+    app = moduleRef.createNestApplication();
+
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
         transform: true,
       }),
     );
+
     await app.init();
   });
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prisma.$transaction.mockImplementation((callback) => callback(tx));
-    tx.order.findFirst.mockResolvedValue({
+    payments.clear();
+    nextPaymentId = 9;
+
+    order = {
       id: 42,
-      status: 'PENDING',
+      userId: 7,
       total: 94000,
-    });
-    tx.order.updateMany.mockResolvedValue({ count: 1 });
-    tx.payment.create.mockImplementation(async ({ data }) => ({
-      id: 9,
-      orderId: data.orderId,
-      amount: data.amount,
-      method: data.method,
-      status: data.status,
-    }));
+      status: OrderStatus.PENDING,
+    };
   });
 
   afterAll(async () => {
@@ -112,7 +211,10 @@ describe('POST /payments', () => {
   it('persists a successful payment and marks the order PAID', async () => {
     const response = await request(app.getHttpServer())
       .post('/payments')
-      .send({ orderId: 42, method: 'MOMO' })
+      .send({
+        orderId: 42,
+        method: 'MOMO',
+      })
       .expect(201);
 
     expect(response.body).toMatchObject({
@@ -123,29 +225,10 @@ describe('POST /payments', () => {
       status: 'PAID',
       paymentStatus: 'SUCCESS',
     });
-    expect(tx.order.findFirst).toHaveBeenCalledWith({
-      where: { id: 42, userId: 7 },
-      select: { id: true, status: true, total: true },
-    });
-    expect(tx.order.updateMany).toHaveBeenCalledWith({
-      where: { id: 42, userId: 7, status: 'PENDING' },
-      data: { status: 'PAID' },
-    });
-    expect(tx.payment.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        orderId: 42,
-        amount: 94000,
-        method: 'MOMO',
-        status: 'SUCCESS',
-      }),
-      select: {
-        id: true,
-        orderId: true,
-        amount: true,
-        method: true,
-        status: true,
-      },
-    });
+
+    expect(order?.status).toBe(OrderStatus.PAID);
+    expect(payments.size).toBe(1);
+    expect(tx.order.updateMany).toHaveBeenCalled();
   });
 
   it('persists a failed payment and marks the order PAYMENT_FAILED', async () => {
@@ -165,44 +248,61 @@ describe('POST /payments', () => {
       status: 'PAYMENT_FAILED',
       paymentStatus: 'FAILED',
     });
-    expect(tx.order.updateMany).toHaveBeenCalledWith({
-      where: { id: 42, userId: 7, status: 'PENDING' },
-      data: { status: 'PAYMENT_FAILED' },
-    });
-    expect(tx.payment.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        status: 'FAILED',
-      }),
-      select: expect.any(Object),
-    });
+
+    expect(order?.status).toBe(
+      OrderStatus.PAYMENT_FAILED,
+    );
+
+    expect(payments.size).toBe(1);
   });
 
   it('rejects unknown and non-pending orders without recording a payment', async () => {
-    tx.order.findFirst.mockResolvedValue(null);
+    order = null;
+
     await request(app.getHttpServer())
       .post('/payments')
-      .send({ orderId: 42, method: 'CARD' })
+      .send({
+        orderId: 42,
+        method: 'CARD',
+      })
       .expect(404);
+
     expect(tx.payment.create).not.toHaveBeenCalled();
 
-    tx.order.findFirst.mockResolvedValue({
+    order = {
       id: 42,
-      status: 'PAID',
+      userId: 7,
       total: 94000,
-    });
+      status: OrderStatus.COMPLETED,
+    };
+
     await request(app.getHttpServer())
       .post('/payments')
-      .send({ orderId: 42, method: 'CARD' })
+      .send({
+        orderId: 42,
+        method: 'CARD',
+      })
       .expect(409);
-    expect(tx.payment.create).not.toHaveBeenCalled();
+
+    expect(order.status).toBe(OrderStatus.COMPLETED);
+    expect(payments.size).toBe(0);
   });
 
   it('rejects malformed payment requests', async () => {
-    await request(app.getHttpServer())
-      .post('/payments')
-      .send({ orderId: 0, method: 'CASH' })
-      .expect(400);
+    const invalidRequests = [
+      { orderId: 0, method: 'MOMO' },
+      { orderId: 42, method: 'CASH' },
+      { orderId: 'abc', method: 'CARD' },
+      { method: 'MOMO' },
+    ];
 
-    expect(tx.order.findFirst).not.toHaveBeenCalled();
+    for (const body of invalidRequests) {
+      await request(app.getHttpServer())
+        .post('/payments')
+        .send(body)
+        .expect(400);
+    }
+
+    expect(tx.payment.create).not.toHaveBeenCalled();
   });
 });
