@@ -1,4 +1,4 @@
-
+import { transitionOrderStatus } from './order-state-machine';
 import {
   BadRequestException,
   Injectable,
@@ -202,4 +202,15 @@ export class OrdersService {
       };
     });
   }
+
+  
+async changeStatus(
+  orderId: number,
+  nextStatus: OrderStatus,
+) {
+  return this.prisma.$transaction((tx) =>
+    transitionOrderStatus(tx, orderId, nextStatus),
+  );
+}
+
 }
