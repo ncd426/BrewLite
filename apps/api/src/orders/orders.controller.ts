@@ -5,6 +5,8 @@ import {
   Get,
   Post,
   UseGuards,
+  Param,
+  ParseIntPipe,
 } from '@nestjs/common';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -35,14 +37,28 @@ export class OrdersController {
     });
   }
 
+  
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  getMyOrders(@CurrentUser() user: AuthenticatedUser) {
-    return {
-      userId: user.userId,
-      orders: [],
-      message:
-        'Order history endpoint is ready for persistence layer integration',
-    };
+  getMyOrders(
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.ordersService.getMyOrders(
+      user.userId,
+    );
   }
+
+  
+@UseGuards(JwtAuthGuard)
+@Get(':id')
+getOrderById(
+  @CurrentUser() user: AuthenticatedUser,
+  @Param('id', ParseIntPipe) orderId: number,
+) {
+  return this.ordersService.getOrderById(
+    user.userId,
+    orderId,
+  );
+}
+
 }
