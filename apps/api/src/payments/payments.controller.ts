@@ -1,19 +1,19 @@
 
 import {
+  BadRequestException,
   Body,
   Controller,
+  Headers,
   Post,
   UseGuards,
 } from '@nestjs/common';
+
 import {
   IsBoolean,
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsOptional,
-  IsString,
   Max,
-  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -26,8 +26,6 @@ class PaymentDto {
   @Min(1)
   orderId!: number;
 
-  // Tùy chọn để tương thích với main.
-  // Nếu không gửi, lấy total từ database.
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -37,13 +35,6 @@ class PaymentDto {
   @IsIn(['MOMO', 'CARD'])
   method!: 'MOMO' | 'CARD';
 
-  // Khuyến nghị client luôn cung cấp key.
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(128)
-  idempotencyKey?: string;
-
   @IsOptional()
   @IsBoolean()
   simulateFailure?: boolean;
@@ -51,7 +42,6 @@ class PaymentDto {
 
 type AuthenticatedUser = {
   userId: number;
-  email?: string;
 };
 
 @Controller('payments')
@@ -65,13 +55,22 @@ export class PaymentsController {
   pay(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: PaymentDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
+    const key = idempotencyKey?.trim();
+
+    if (!key || key.length > 128) {
+      throw new BadRequestException(
+        'Valid Idempotency-Key header is required',
+      );
+    }
+
     return this.paymentsService.processPayment(
       user.userId,
       dto.orderId,
       dto.amount,
       dto.method,
-      dto.idempotencyKey,
+      key,
       dto.simulateFailure ?? false,
     );
   }

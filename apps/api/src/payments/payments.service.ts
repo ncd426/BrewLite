@@ -1,5 +1,4 @@
 
-import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -48,12 +47,18 @@ export class PaymentsService {
     orderId: number,
     amount: number | undefined,
     method: PaymentMethod,
-    idempotencyKey: string | undefined,
+    idempotencyKey: string,
     simulateFailure = false,
   ) {
     // Nếu client không gửi key, tự sinh key.
     // Để đảm bảo idempotency khi retry, client nên gửi key.
-    const key = idempotencyKey ?? randomUUID();
+    const key = idempotencyKey.trim();
+
+    if (!key || key.length > 128) {
+      throw new BadRequestException(
+        'Invalid Idempotency-Key',
+      );
+    }
 
     if (!key.trim()) {
       throw new BadRequestException(
@@ -103,17 +108,13 @@ export class PaymentsService {
         });
 
         if (existing) {
-          if (
-            existing.orderId !== orderId ||
-            existing.amount !== paymentAmount ||
-            existing.method !== method
-          ) {
-            throw new ConflictException(
-              'Idempotency key was used for another request',
-            );
-          }
-
-          return this.formatPayment(existing);
+          return this.replayExistingPayment(
+            existing,
+            orderId,
+            amount,
+            method,
+            simulateFailure,
+          );
         }
 
         // Không tin số tiền do frontend gửi.
@@ -171,6 +172,7 @@ export class PaymentsService {
     } catch (error) {
       // Xử lý unique constraint khi hai request
       // dùng cùng idempotency key đồng thời.
+      
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -179,21 +181,50 @@ export class PaymentsService {
           where: { idempotencyKey: key },
         });
 
-        if (
-          existing &&
-          existing.orderId === orderId &&
-          existing.method === method &&
-          (amount === undefined || existing.amount === amount)
-        ) {
-          return this.formatPayment(existing);
+        if (existing) {
+          return this.replayExistingPayment(
+            existing,
+            orderId,
+            amount,
+            method,
+            simulateFailure,
+          );
         }
 
         throw new ConflictException(
-          'Idempotency key already exists',
+          'Idempotency-Key already exists',
         );
       }
 
       throw error;
+
     }
   }
+
+  
+private replayExistingPayment(
+  payment: Payment,
+  orderId: number,
+  amount: number | undefined,
+  method: PaymentMethod,
+  simulateFailure: boolean,
+) {
+  const expectedStatus = simulateFailure
+    ? PaymentStatus.FAILED
+    : PaymentStatus.SUCCESS;
+
+  if (
+    payment.orderId !== orderId ||
+    (amount !== undefined && payment.amount !== amount) ||
+    payment.method !== method ||
+    payment.status !== expectedStatus
+  ) {
+    throw new ConflictException(
+      'Idempotency-Key reused with different payment data',
+    );
+  }
+
+  return this.formatPayment(payment);
+}
+
 }
