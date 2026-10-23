@@ -34,6 +34,7 @@ export class OrdersController {
     return this.ordersService.create({
       userId: user.userId,
       items: dto.items,
+      promotionCode: dto.promotionCode,
     });
   }
 

@@ -11,6 +11,10 @@ import {
   Min,
   ValidateIf,
   ValidateNested,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  MaxLength
 } from 'class-validator';
 import { SIZE_SURCHARGE, TOPPING_PRICE } from '../pricing';
 
@@ -42,4 +46,9 @@ export class CreateOrderDto {
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  promotionCode?: string;
 }
