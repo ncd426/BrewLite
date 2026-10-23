@@ -211,6 +211,7 @@ describe('POST /payments', () => {
   it('persists a successful payment and marks the order PAID', async () => {
     const response = await request(app.getHttpServer())
       .post('/payments')
+      .set('Idempotency-Key', 'test-success-001')
       .send({
         orderId: 42,
         method: 'MOMO',
@@ -234,6 +235,7 @@ describe('POST /payments', () => {
   it('persists a failed payment and marks the order PAYMENT_FAILED', async () => {
     const response = await request(app.getHttpServer())
       .post('/payments')
+      .set('Idempotency-Key', 'test-payment-failed-001')
       .send({
         orderId: 42,
         method: 'CARD',
@@ -256,11 +258,14 @@ describe('POST /payments', () => {
     expect(payments.size).toBe(1);
   });
 
+
   it('rejects unknown and non-pending orders without recording a payment', async () => {
     order = null;
 
+    // Test 1: Đơn hàng không tồn tại -> HTTP 404
     await request(app.getHttpServer())
       .post('/payments')
+      .set('Idempotency-Key', 'test-order-not-found-001')
       .send({
         orderId: 42,
         method: 'CARD',
@@ -269,6 +274,7 @@ describe('POST /payments', () => {
 
     expect(tx.payment.create).not.toHaveBeenCalled();
 
+    // Test 2: Đơn hàng đã COMPLETED -> HTTP 409
     order = {
       id: 42,
       userId: 7,
@@ -278,15 +284,20 @@ describe('POST /payments', () => {
 
     await request(app.getHttpServer())
       .post('/payments')
+      .set('Idempotency-Key', 'test-order-completed-001')
       .send({
         orderId: 42,
         method: 'CARD',
       })
       .expect(409);
 
+    // Đơn hàng không bị thay đổi trạng thái
     expect(order.status).toBe(OrderStatus.COMPLETED);
+
+    // Không tạo bất kỳ Payment nào
     expect(payments.size).toBe(0);
   });
+
 
   it('rejects malformed payment requests', async () => {
     const invalidRequests = [
