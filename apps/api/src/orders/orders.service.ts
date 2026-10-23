@@ -1,4 +1,6 @@
 import { transitionOrderStatus } from './order-state-machine';
+import { NotFoundException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import {
   BadRequestException,
   Injectable,
@@ -32,6 +34,60 @@ function checkMoney(value: number): number {
 
   return value;
 }
+
+
+const orderHistorySelect = {
+  id: true,
+  status: true,
+  total: true,
+  createdAt: true,
+  discountAmount: true,
+  items: {
+    orderBy: { id: 'asc' },
+    select: {
+      id: true,
+      productId: true,
+      size: true,
+      qty: true,
+      unitPrice: true,
+      lineTotal: true,
+      toppings: true,
+      product: {
+        select: {
+          name: true,
+          imageUrl: true,
+        },
+      },
+    },
+  },
+} as const satisfies Prisma.OrderSelect;
+
+type OrderHistoryRecord = Prisma.OrderGetPayload<{
+  select: typeof orderHistorySelect;
+}>;
+
+function formatOrder(order: OrderHistoryRecord) {
+  return {
+    id: order.id,
+    orderId: order.id,
+    status: order.status,
+    total: order.total,
+    discountAmount: order.discountAmount,
+    createdAt: order.createdAt,
+    items: order.items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      productName: item.product.name,
+      imageUrl: item.product.imageUrl,
+      size: item.size,
+      qty: item.qty,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
+      toppings: item.toppings,
+    })),
+  };
+}
+
 
 @Injectable()
 export class OrdersService {
@@ -211,6 +267,49 @@ async changeStatus(
   return this.prisma.$transaction((tx) =>
     transitionOrderStatus(tx, orderId, nextStatus),
   );
+}
+
+
+/**
+ * GET /orders/me
+ * Return order history for the authenticated user.
+ */
+async getMyOrders(userId: number) {
+  const orders = await this.prisma.order.findMany({
+    where: { userId },
+    orderBy: [
+      { createdAt: 'desc' },
+      { id: 'desc' },
+    ],
+    select: orderHistorySelect,
+  });
+
+  return {
+    userId,
+    orders: orders.map(formatOrder),
+  };
+}
+
+/**
+ * GET /orders/:id
+ * Return an order only if it belongs to this user.
+ */
+async getOrderById(userId: number, orderId: number) {
+  const order = await this.prisma.order.findFirst({
+    where: {
+      id: orderId,
+      userId,
+    },
+    select: orderHistorySelect,
+  });
+
+  if (!order) {
+    throw new NotFoundException(
+      'Order not found',
+    );
+  }
+
+  return formatOrder(order);
 }
 
 }
