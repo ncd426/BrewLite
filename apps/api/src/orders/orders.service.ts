@@ -4,6 +4,7 @@ import { NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -22,6 +23,7 @@ export type CreateOrderInput = {
 };
 
 const MAX_DATABASE_INT = 2147483647;
+const MAX_STOCK_RESERVATION_ATTEMPTS = 10;
 
 function checkMoney(value: number): number {
   if (
@@ -35,6 +37,54 @@ function checkMoney(value: number): number {
   }
 
   return value;
+}
+
+async function reserveProductStock(
+  tx: Prisma.TransactionClient,
+  productId: number,
+  quantity: number,
+  initialVersion: number,
+) {
+  let version = initialVersion;
+
+  for (
+    let attempt = 0;
+    attempt < MAX_STOCK_RESERVATION_ATTEMPTS;
+    attempt += 1
+  ) {
+    const reservation = await tx.product.updateMany({
+      where: {
+        id: productId,
+        version,
+        stock: { gte: quantity },
+      },
+      data: {
+        stock: { decrement: quantity },
+        version: { increment: 1 },
+      },
+    });
+
+    if (reservation.count === 1) {
+      return;
+    }
+
+    const currentProduct = await tx.product.findUnique({
+      where: { id: productId },
+      select: { stock: true, version: true },
+    });
+
+    if (!currentProduct || currentProduct.stock < quantity) {
+      throw new BadRequestException(
+        `Insufficient stock for product ${productId}`,
+      );
+    }
+
+    version = currentProduct.version;
+  }
+
+  throw new ConflictException(
+    `Stock changed while placing the order for product ${productId}; please retry`,
+  );
 }
 
 
@@ -124,6 +174,7 @@ export class OrdersService {
           id: true,
           price: true,
           stock: true,
+          version: true,
         },
       });
 
@@ -240,6 +291,18 @@ export class OrdersService {
       const finalTotal = checkMoney(
         subtotal - discountAmount,
       );
+
+      // Reserve stock with a version check so concurrent orders cannot oversell.
+      for (const [productId, quantity] of requestedQuantity) {
+        const product = productMap.get(productId)!;
+
+        await reserveProductStock(
+          tx,
+          productId,
+          quantity,
+          product.version,
+        );
+      }
 
       // 4. Tạo Order và OrderItems trong transaction.
       const order = await tx.order.create({
