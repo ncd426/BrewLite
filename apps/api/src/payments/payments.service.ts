@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { awardLoyaltyPointsOnce } from './loyalty-points';
 import {
   OrderStatus,
   Payment,
@@ -159,6 +160,10 @@ export class PaymentsService {
           order.id,
           nextStatus,
         );
+
+        if (nextStatus === OrderStatus.PAID) {
+          await awardLoyaltyPointsOnce(tx, order.id);
+        }
 
         const updatedPayment = await tx.payment.update({
           where: { id: payment.id },

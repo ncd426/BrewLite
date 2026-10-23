@@ -1,4 +1,5 @@
 import { transitionOrderStatus } from './order-state-machine';
+import { resolvePromotion } from './promotion-rule';
 import { NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
@@ -17,6 +18,7 @@ export type OrderStatus = PrismaOrderStatus;
 export type CreateOrderInput = {
   userId: number;
   items: CreateOrderItemDto[];
+  promotionCode?: string;
 };
 
 const MAX_DATABASE_INT = 2147483647;
@@ -215,26 +217,56 @@ export class OrdersService {
         };
       });
 
-      const total = checkMoney(
+      
+      // 1. Tính tổng tiền sản phẩm trước giảm giá.
+      const subtotal = checkMoney(
         orderItems.reduce(
           (sum, item) => sum + item.lineTotal,
           0,
         ),
       );
 
-      // Nested write inside an interactive transaction.
-      // Either Order and all OrderItems persist, or none do.
+      // 2. Kiểm tra mã khuyến mãi và tính tiền giảm.
+      const {
+        promotionId,
+        discountAmount,
+      } = await resolvePromotion(
+        tx,
+        input.promotionCode,
+        subtotal,
+      );
+
+      // 3. Tổng tiền khách thực sự phải thanh toán.
+      const finalTotal = checkMoney(
+        subtotal - discountAmount,
+      );
+
+      // 4. Tạo Order và OrderItems trong transaction.
       const order = await tx.order.create({
         data: {
           user: {
             connect: { id: input.userId },
           },
+
           status: PrismaOrderStatus.PENDING,
-          total,
+
+          total: finalTotal,
+          discountAmount,
+
+          // Chỉ liên kết Promotion khi có mã hợp lệ.
+          ...(promotionId !== null
+            ? {
+                promotion: {
+                  connect: { id: promotionId },
+                },
+              }
+            : {}),
+
           items: {
             create: orderItems,
           },
         },
+
         include: {
           items: {
             orderBy: { id: 'asc' },
@@ -242,11 +274,16 @@ export class OrdersService {
         },
       });
 
+      // 5. Trả kết quả tạo đơn.
       return {
         orderId: order.id,
         status: order.status,
+        subtotal,
+        discountAmount: order.discountAmount,
         total: order.total,
+        promotionId: order.promotionId,
         userId: order.userId,
+
         items: order.items.map((item) => ({
           productId: item.productId,
           size: item.size,
@@ -256,6 +293,7 @@ export class OrdersService {
           toppings: item.toppings,
         })),
       };
+
     });
   }
 
