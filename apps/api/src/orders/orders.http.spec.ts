@@ -30,35 +30,55 @@ describe('POST /orders', () => {
 
   const tx = {
     user: {
-        findUnique: jest.fn<
+      findUnique: jest.fn<
         () => Promise<{ id: number } | null>
-        >(),
+      >(),
     },
     product: {
-        findMany: jest.fn<
+      findMany: jest.fn<
         () => Promise<
-            Array<{
+          Array<{
             id: number;
             price: number;
             stock: number;
-            }>
+            version: number;
+          }>
         >
-        >(),
+      >(),
+      findUnique: jest.fn<
+        () => Promise<{ stock: number; version: number } | null>
+      >(),
+      updateMany: jest.fn<
+        (args: {
+          where: {
+            id: number;
+            version: number;
+            stock: { gte: number };
+          };
+          data: {
+            stock: { decrement: number };
+            version: { increment: number };
+          };
+        }) => Promise<{ count: number }>
+      >(),
     },
     order: {
-        create: jest.fn<
+      create: jest.fn<
         (args: { data: TestOrderCreateData }) => Promise<unknown>
-        >(),
+      >(),
     },
-    };
+  };
 
-    const prisma = {
+  const prisma = {
     $transaction: jest.fn<
-        (
+      (
         callback: (client: typeof tx) => Promise<unknown>,
-        ) => Promise<unknown>
+      ) => Promise<unknown>
     >(),
-    };
+  };
+
+  let currentStock = 12;
+  let currentVersion = 0;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -106,14 +126,34 @@ describe('POST /orders', () => {
     );
 
     tx.user.findUnique.mockResolvedValue({ id: 7 });
+    currentStock = 12;
+    currentVersion = 0;
 
-    tx.product.findMany.mockResolvedValue([
+    tx.product.findMany.mockImplementation(async () => [
       {
         id: 1,
         price: 35000,
-        stock: 12,
+        stock: currentStock,
+        version: currentVersion,
       },
     ]);
+    tx.product.findUnique.mockImplementation(async () => ({
+      stock: currentStock,
+      version: currentVersion,
+    }));
+    tx.product.updateMany.mockImplementation(async ({ where, data }) => {
+      if (
+        where.id !== 1 ||
+        where.version !== currentVersion ||
+        currentStock < where.stock.gte
+      ) {
+        return { count: 0 };
+      }
+
+      currentStock -= data.stock.decrement;
+      currentVersion += data.version.increment;
+      return { count: 1 };
+    });
 
     tx.order.create.mockImplementation(async ({ data }) => ({
       id: 42,
@@ -232,5 +272,29 @@ describe('POST /orders', () => {
       .expect(400);
 
     expect(tx.order.create).not.toHaveBeenCalled();
+  });
+
+  it('does not oversell when many orders are submitted concurrently', async () => {
+    currentStock = 5;
+
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        request(app.getHttpServer())
+          .post('/orders')
+          .send({
+            items: [{ productId: 1, size: 'S', qty: 1 }],
+          }),
+      ),
+    );
+
+    expect(
+      responses.filter((response) => response.status === 201),
+    ).toHaveLength(5);
+    expect(
+      responses.filter((response) => response.status === 400),
+    ).toHaveLength(15);
+    expect(currentStock).toBe(0);
+    expect(tx.order.create).toHaveBeenCalledTimes(5);
+    expect(tx.product.updateMany).toHaveBeenCalled();
   });
 });
