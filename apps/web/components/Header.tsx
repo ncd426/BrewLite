@@ -96,7 +96,12 @@ export function Header() {
             </h1>
           </div>
         </Link>
-
+        <Link 
+          href="/orders" 
+          className="text-sm font-medium text-gray-700 hover:text-amber-600 transition"
+        >
+          Lịch sử đơn hàng
+        </Link>
         <nav className="flex items-center gap-3">
           <Link
             href="/cart"

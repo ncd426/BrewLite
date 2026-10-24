@@ -178,3 +178,31 @@ export async function processPayment(
     body: JSON.stringify(payload),
   });
 }
+
+export type OrderDetailItem = {
+  id?: number;
+  productId: number;
+  productName?: string;
+  size: string;
+  qty: number;
+  price: number;
+  unitPrice?: number;
+  lineTotal?: number;
+};
+
+export type OrderHistoryItem = {
+  id: number;
+  orderId?: number;
+  status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED' | string;
+  total: number;
+  createdAt: string;
+  items: OrderDetailItem[];
+};
+
+export async function fetchMyOrders(): Promise<OrderHistoryItem[]> {
+  return apiRequest<OrderHistoryItem[]>('/orders/me');
+}
+
+export async function fetchOrderById(id: number | string): Promise<OrderHistoryItem> {
+  return apiRequest<OrderHistoryItem>(`/orders/${id}`);
+}
