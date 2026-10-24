@@ -45,17 +45,18 @@ export default function CheckoutPage() {
 
     try {
       const orderItems: OrderItemInput[] = items.map((item) => ({
-        productId: item.id,
+        productId: Number(item.id),
         size: item.size || 'M',
         qty: item.quantity,
         price: item.price,
       }));
 
       const order = await createOrder(orderItems);
+      const targetOrderId = order.orderId || (order as any).id;
 
       const paymentRes = await processPayment(
         {
-          orderId: order.orderId,
+          orderId: targetOrderId,
           method: paymentMethod,
         },
         idempotencyKey,
@@ -63,7 +64,7 @@ export default function CheckoutPage() {
 
       if (paymentRes.status === 'PAID') {
         clearCart();
-        router.push(`/checkout/success?orderId=${order.orderId}`);
+        router.push(`/checkout/success?orderId=${targetOrderId}`);
       } else {
         setErrorMessage(
           paymentRes.message ||
@@ -119,7 +120,7 @@ export default function CheckoutPage() {
             <h2 className="mb-4 text-lg font-semibold text-gray-900">Món đã chọn ({items.length})</h2>
             <div className="divide-y divide-gray-100">
               {items.map((item) => (
-                <div key={item.key} className="flex items-center justify-between py-3">
+                <div key={item.key || `${item.id}-${item.size}`} className="flex items-center justify-between py-3">
                   <div>
                     <p className="font-medium text-gray-900">{item.name}</p>
                     <p className="text-xs text-gray-500">
@@ -128,7 +129,7 @@ export default function CheckoutPage() {
                     <p className="text-xs text-gray-500">Số lượng: x{item.quantity}</p>
                   </div>
                   <span className="font-semibold text-gray-800">
-                    {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                    {((item.price || 0) * item.quantity).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
               ))}
