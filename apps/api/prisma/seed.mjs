@@ -36,6 +36,7 @@ const prisma = new PrismaClient();
 
 async function seedProducts() {
   let created = 0;
+  let imageUpdated = 0;
   const found = new Map();
   for (const fixture of PRODUCTS) {
     // Product.name is not unique in the current schema; do not rewrite existing rows.
@@ -43,10 +44,16 @@ async function seedProducts() {
     if (!product) {
       product = await prisma.product.create({ data: fixture });
       created++;
+    } else if (product.imageUrl !== fixture.imageUrl) {
+      product = await prisma.product.update({
+        where: { id: product.id },
+        data: { imageUrl: fixture.imageUrl },
+      });
+      imageUpdated++;
     }
     found.set(fixture.name, product);
   }
-  return { created, found };
+  return { created, imageUpdated, found };
 }
 
 async function seedPromotions() {
@@ -72,13 +79,20 @@ async function seedPromotions() {
 async function seedUsers() {
   let created = 0;
   const found = new Map();
-  // Hash only once. Existing accounts are never overwritten on reruns.
+  // Hash only once. Existing passwords and non-empty names are preserved.
   const passwordHash = await bcrypt.hash(process.env.SEED_DEMO_PASSWORD, 12);
   for (const fixture of USERS) {
     let user = await prisma.user.findUnique({ where: { email: fixture.email } });
     if (!user) {
-      user = await prisma.user.create({ data: { email: fixture.email, passwordHash, loyaltyPoints: 0 } });
+      user = await prisma.user.create({
+        data: { name: fixture.name, email: fixture.email, passwordHash, loyaltyPoints: 0 },
+      });
       created++;
+    } else if (!user.name) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { name: fixture.name },
+      });
     }
     found.set(fixture.email, user);
   }
@@ -151,7 +165,7 @@ async function main() {
   const promotions = await seedPromotions();
   const users = await seedUsers();
   const ordersCreated = await seedOrders(products.found, users.found, promotions.found);
-  console.log(`Products: ${PRODUCTS.length} fixtures, ${products.created} created`);
+  console.log(`Products: ${PRODUCTS.length} fixtures, ${products.created} created, ${products.imageUpdated} images updated`);
   console.log(`Promotions: ${PROMOTIONS.length} fixtures, ${promotions.created} created`);
   console.log(`Users: ${USERS.length} demo accounts, ${users.created} created`);
   console.log(`Orders/payments: ${ORDERS.length} fixture pairs, ${ordersCreated} pairs created`);

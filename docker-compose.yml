@@ -1,57 +1,62 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: brewlite-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: brewlite
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: brewlite-secret
+      POSTGRES_DB: ${POSTGRES_DB:-brewlite}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brewlite-secret}
     ports:
-      - '5433:5432'
+      - '${POSTGRES_PORT:-5433}:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d brewlite']
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 5s
       retries: 10
 
-  api:
-    image: node:20-alpine
-    container_name: brewlite-api
-    working_dir: /app
-    command: sh -c "npm install && npx prisma generate && npx prisma db push && npm run start:dev"
-    volumes:
-      - ./apps/api:/app
-      - api_node_modules:/app/node_modules
-    ports:
-      - '4000:4000'
+  backend:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:brewlite-secret@localhost:5433/brewlite}
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-brewlite-secret}@db:5432/${POSTGRES_DB:-brewlite}
       JWT_SECRET: ${JWT_SECRET:-local-only-change-me}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-brewlite-local-demo-password}
+    ports:
+      - '${API_PORT:-4000}:4000'
     depends_on:
       db:
         condition: service_healthy
+    command: sh -c 'npx prisma migrate deploy && npm run seed && npm run start:prod'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/products').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
-  web:
-    image: node:20-alpine
-    container_name: brewlite-web
-    working_dir: /app
-    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
-    volumes:
-      - ./apps/web:/app
-      - web_node_modules:/app/node_modules
-      - web_next:/app/.next
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    restart: unless-stopped
     ports:
-      - '3000:3000'
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+      - '${WEB_PORT:-3000}:3000'
     depends_on:
-      - api
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
-  api_node_modules:
-  web_node_modules:
-  web_next:

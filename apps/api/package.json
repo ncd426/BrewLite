@@ -9,6 +9,8 @@
     "build": "nest build",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\"",
+    "seed": "node prisma/seed.mjs",
+    "seed:products": "node prisma/seed-products.mjs",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",

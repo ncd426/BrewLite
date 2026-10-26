@@ -1,25 +1,21 @@
 // BrewLite development fixtures (money is always integer VND).
-// Products intentionally keep the prices of the 3 existing API mock products.
+// Product details and local image paths match apps/web/lib/mock-data.ts.
 export const PRODUCTS = [
-  { name: 'C\u00e0 ph\u00ea s\u1eefa', price: 35000, stock: 12, imageUrl: 'https://images.unsplash.com/photo-1497636577773-f2a944c4f6d9' },
-  { name: 'Americano', price: 40000, stock: 8, imageUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93' },
-  { name: 'Mocha', price: 45000, stock: 5, imageUrl: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31' },
-  { name: 'Espresso', price: 30000, stock: 25, imageUrl: 'https://images.unsplash.com/photo-1511920170033-f8396924c348' },
-  { name: 'B\u1ea1c x\u1ec9u', price: 39000, stock: 30, imageUrl: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735' },
-  { name: 'Cappuccino', price: 45000, stock: 18, imageUrl: 'https://images.unsplash.com/photo-1570968915860-54d5c301fa9f' },
-  { name: 'Latte', price: 45000, stock: 22, imageUrl: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735' },
-  { name: 'Cold Brew', price: 43000, stock: 28, imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c' },
-  { name: 'Tr\u00e0 \u0111\u00e0o', price: 39000, stock: 40, imageUrl: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc' },
-  { name: 'Tr\u00e0 v\u1ea3i', price: 42000, stock: 26, imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574' },
-  { name: 'Matcha Latte', price: 49000, stock: 15, imageUrl: 'https://images.unsplash.com/photo-1515823064-d6e0c04616a7' },
-  { name: 'Chocolate \u0111\u00e1 xay', price: 55000, stock: 16, imageUrl: 'https://images.unsplash.com/photo-1542990253-0b8be0f0f0ed' },
+  { name: 'Cappuccino', price: 39000, stock: 20, imageUrl: '/images/cappuccino.jpg' },
+  { name: 'C\u00e0 ph\u00ea Phin', price: 25000, stock: 30, imageUrl: '/images/ca_phe_phin.jpg' },
+  { name: 'B\u1ea1c X\u1ec9u S\u00e0i G\u00f2n', price: 32000, stock: 25, imageUrl: '/images/bac_xiu_sai_gon.jpg' },
+  { name: 'C\u00e0 ph\u00ea \u0110en \u0110\u00e1', price: 25000, stock: 25, imageUrl: '/images/ca_phe_den_da.jpg' },
+  { name: 'Tr\u00e0 \u0110\u00e0o Cam S\u1ea3', price: 38000, stock: 15, imageUrl: '/images/tra_dao_cam_sa.jpg' },
+  { name: 'Matcha Latte', price: 45000, stock: 18, imageUrl: '/images/matcha_latte.jpg' },
+  { name: 'C\u00e0 Ph\u00ea Mu\u1ed1i BrewLite', price: 35000, stock: 22, imageUrl: '/images/ca_phe_muoi_brewlite.jpg' },
+  { name: 'Cold Brew Cam V\u00e0ng BrewLite', price: 45000, stock: 20, imageUrl: '/images/cold_brew_cam_vang_brewlite.jpg' },
 ];
 
 // Only local .test accounts. Password is provided at runtime by the developer.
 export const USERS = [
-  { email: 'demo@brewlite.test' },
-  { email: 'khach1@brewlite.test' },
-  { email: 'khach2@brewlite.test' },
+  { name: 'BrewLite Demo', email: 'demo@brewlite.test' },
+  { name: 'Kh\u00e1ch h\u00e0ng 1', email: 'khach1@brewlite.test' },
+  { name: 'Kh\u00e1ch h\u00e0ng 2', email: 'khach2@brewlite.test' },
 ];
 
 export const PROMOTIONS = [
@@ -44,27 +40,27 @@ export const LOYALTY_VND_PER_POINT = 10000;
 // Every example order has a payment record (including pending/failed attempts).
 export const ORDERS = [
   { key: 'brewlite-seed-v1-pending', email: 'demo@brewlite.test', status: 'PENDING', paymentStatus: 'PENDING', method: 'CARD', promotion: null, items: [
-    { name: 'Americano', size: 'S', qty: 1, toppings: [] },
+    { name: 'Cappuccino', size: 'S', qty: 1, toppings: [] },
   ] },
   { key: 'brewlite-seed-v1-paid', email: 'demo@brewlite.test', status: 'PAID', paymentStatus: 'SUCCESS', method: 'MOMO', promotion: 'WELCOME10', items: [
-    { name: 'C\u00e0 ph\u00ea s\u1eefa', size: 'M', qty: 2, toppings: ['Tr\u00e2n ch\u00e2u'] },
+    { name: 'C\u00e0 Ph\u00ea Mu\u1ed1i BrewLite', size: 'M', qty: 2, toppings: ['Tr\u00e2n ch\u00e2u'] },
   ] },
   { key: 'brewlite-seed-v1-preparing', email: 'khach1@brewlite.test', status: 'PREPARING', paymentStatus: 'SUCCESS', method: 'CARD', promotion: 'GIAM20K', items: [
-    { name: 'Mocha', size: 'L', qty: 1, toppings: ['Kem cheese'] },
+    { name: 'Cold Brew Cam V\u00e0ng BrewLite', size: 'L', qty: 1, toppings: ['Kem cheese'] },
     { name: 'Cappuccino', size: 'M', qty: 1, toppings: [] },
   ] },
   { key: 'brewlite-seed-v1-ready', email: 'khach2@brewlite.test', status: 'READY', paymentStatus: 'SUCCESS', method: 'MOMO', promotion: 'WELCOME10', items: [
-    { name: 'Tr\u00e0 \u0111\u00e0o', size: 'M', qty: 2, toppings: ['Th\u1ea1ch c\u00e0 ph\u00ea'] },
+    { name: 'Tr\u00e0 \u0110\u00e0o Cam S\u1ea3', size: 'M', qty: 2, toppings: ['Th\u1ea1ch c\u00e0 ph\u00ea'] },
   ] },
   { key: 'brewlite-seed-v1-completed', email: 'demo@brewlite.test', status: 'COMPLETED', paymentStatus: 'SUCCESS', method: 'CARD', promotion: 'GIAM20K', items: [
-    { name: 'Latte', size: 'L', qty: 1, toppings: [] },
-    { name: 'B\u1ea1c x\u1ec9u', size: 'M', qty: 2, toppings: [] },
+    { name: 'B\u1ea1c X\u1ec9u S\u00e0i G\u00f2n', size: 'L', qty: 1, toppings: [] },
+    { name: 'C\u00e0 ph\u00ea Phin', size: 'M', qty: 2, toppings: [] },
   ] },
   { key: 'brewlite-seed-v1-failed', email: 'khach2@brewlite.test', status: 'PAYMENT_FAILED', paymentStatus: 'FAILED', method: 'MOMO', promotion: null, items: [
     { name: 'Matcha Latte', size: 'M', qty: 1, toppings: [] },
   ] },
   { key: 'brewlite-seed-v1-cancelled', email: 'khach1@brewlite.test', status: 'CANCELLED', paymentStatus: 'FAILED', method: 'CARD', promotion: null, items: [
-    { name: 'Espresso', size: 'S', qty: 1, toppings: [] },
+    { name: 'C\u00e0 ph\u00ea \u0110en \u0110\u00e1', size: 'S', qty: 1, toppings: [] },
   ] },
 ];
 
@@ -109,6 +105,9 @@ export function validateFixtures() {
   for (const product of PRODUCTS) {
     if (!Number.isInteger(product.price) || product.price <= 0 || !Number.isInteger(product.stock) || product.stock < 0) {
       throw new Error(`Invalid price/stock: ${product.name}`);
+    }
+    if (!/^\/images\/[A-Za-z0-9._-]+$/.test(product.imageUrl)) {
+      throw new Error(`Invalid local product image: ${product.name}`);
     }
   }
   for (const promo of PROMOTIONS) {
