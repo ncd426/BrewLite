@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { toast } from 'sonner';
 
 export type CartItem = {
   key: string;
@@ -29,8 +30,8 @@ export const useCartStore = create<CartState>()(
 
       addToCart: (newItem) => {
         const size = newItem.size || 'S';
-        const sortedToppings = [...newItem.toppings].sort().join(',');
-        const itemKey = `${newItem.id}-${newItem.size}-${sortedToppings}`;
+        const sortedToppings = [...(newItem.toppings || [])].sort().join(',');
+        const itemKey = `${newItem.id}-${size}-${sortedToppings}`;
 
         const currentItems = get().items;
         const existingIndex = currentItems.findIndex((item) => item.key === itemKey);
@@ -45,12 +46,21 @@ export const useCartStore = create<CartState>()(
               ...currentItems,
               {
                 ...newItem,
+                size,
                 key: itemKey,
                 quantity: 1,
               },
             ],
           });
         }
+
+        toast.success(`Đã thêm ${newItem.name || 'sản phẩm'} vào giỏ hàng!`, {
+          description: `Size ${size.toUpperCase()}${
+            newItem.toppings && newItem.toppings.length > 0
+              ? ` • Topping: ${newItem.toppings.join(', ')}`
+              : ''
+          }`,
+        });
       },
 
       updateQuantity: (key: string, quantity: number) => {
