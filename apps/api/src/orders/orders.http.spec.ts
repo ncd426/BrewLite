@@ -192,21 +192,21 @@ describe('POST /orders', () => {
       })
       .expect(201);
 
-    // (35000 + 5000 + 7000) * 2 = 94000
+    // (35000 + 5000 + 6000) * 2 = 92000
     expect(response.body).toMatchObject({
       orderId: 42,
       status: 'PENDING',
-      total: 94000,
+      total: 92000,
       userId: 7,
     });
 
     const createData = tx.order.create.mock.calls[0][0].data;
 
-    expect(createData.total).toBe(94000);
+    expect(createData.total).toBe(92000);
     expect(createData.items.create[0]).toMatchObject({
       qty: 2,
-      unitPrice: 47000,
-      lineTotal: 94000,
+      unitPrice: 46000,
+      lineTotal: 92000,
     });
   });
 

@@ -44,11 +44,16 @@ export default function CheckoutPage() {
     const idempotencyKey = crypto.randomUUID();
 
     try {
-      const orderItems: OrderItemInput[] = items.map((item) => ({
+      const orderItems: OrderItemInput[] = items.map((item: any) => ({
         productId: Number(item.id),
         size: item.size || 'M',
         qty: item.quantity,
         price: item.price,
+        toppings: (item.toppings || item.topping || []).map((t: string) => {
+          if (t === 'shot') return 'Thêm Shot Espresso';
+          if (t === 'pearl') return 'Trân châu';
+          return t;
+        }),
       }));
 
       const order = await createOrder(orderItems);

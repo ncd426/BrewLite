@@ -27,6 +27,7 @@ export type OrderItemInput = {
   productId: number;
   size: string;
   qty: number;
+  topping?: string[];
   price: number;
 };
 
@@ -188,6 +189,7 @@ export type OrderDetailItem = {
   price: number;
   unitPrice?: number;
   lineTotal?: number;
+  toppings?: string[];
 };
 
 export type OrderHistoryItem = {
