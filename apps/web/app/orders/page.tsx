@@ -126,7 +126,7 @@ useEffect(() => {
                         </span>
                       </div>
                       <span className="text-gray-700">
-                      {(((item as any).lineTotal || (item as any).unitPrice || item.price || 0) * (item.qty || 1)).toLocaleString('vi-VN')} đ
+                        {((item as any).lineTotal ?? (((item as any).unitPrice || item.price || 0) * (item.qty || 1))).toLocaleString('vi-VN')} đ
                       </span>
                     </div>
                   ))}

@@ -223,7 +223,7 @@ export class OrdersService {
           throw new BadRequestException('Invalid product size');
         }
 
-        const toppings = item.toppings ?? [];
+        const toppings = item.toppings ?? (item as any).topping ?? [];
 
         if (new Set(toppings).size !== toppings.length) {
           throw new BadRequestException(
