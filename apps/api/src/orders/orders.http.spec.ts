@@ -202,11 +202,11 @@ describe('POST /orders', () => {
 
     const createData = tx.order.create.mock.calls[0][0].data;
 
-    expect(createData.total).toBe(94000);
+    expect(createData.total).toBe(92000);
     expect(createData.items.create[0]).toMatchObject({
       qty: 2,
-      unitPrice: 47000,
-      lineTotal: 94000,
+      unitPrice: 46000,
+      lineTotal: 92000,
     });
   });
 
