@@ -192,11 +192,11 @@ describe('POST /orders', () => {
       })
       .expect(201);
 
-    // (35000 + 5000 + 7000) * 2 = 94000
+    // (35000 + 5000 + 6000) * 2 = 92000
     expect(response.body).toMatchObject({
       orderId: 42,
       status: 'PENDING',
-      total: 94000,
+      total: 92000,
       userId: 7,
     });
 
