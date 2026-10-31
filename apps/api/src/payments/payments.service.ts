@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { awardLoyaltyPointsOnce } from './loyalty-points';
+import { awardLoyaltyPointsOnce, VND_PER_REDEEMED_POINT } from './loyalty-points';
 import {
   OrderStatus,
   Payment,
@@ -35,6 +35,7 @@ export class PaymentsService {
       id: payment.id,
       orderId: payment.orderId,
       amount: payment.amount,
+      pointsUsed: payment.pointsUsed ?? 0,
       method: payment.method,
       idempotencyKey: payment.idempotencyKey,
       status,
@@ -50,10 +51,15 @@ export class PaymentsService {
     method: PaymentMethod,
     idempotencyKey: string,
     simulateFailure = false,
+    pointsToRedeem = 0,
   ) {
     // Nếu client không gửi key, tự sinh key.
     // Để đảm bảo idempotency khi retry, client nên gửi key.
     const key = idempotencyKey.trim();
+
+    if (!Number.isSafeInteger(pointsToRedeem) || pointsToRedeem < 0) {
+      throw new BadRequestException('Invalid loyalty points');
+    }
 
     if (!key || key.length > 128) {
       throw new BadRequestException(
@@ -101,7 +107,13 @@ export class PaymentsService {
         }
 
         // Luôn dùng tổng tiền từ database.
-        const paymentAmount = amount ?? order.total;
+        const loyaltyDiscount = pointsToRedeem * VND_PER_REDEEMED_POINT;
+        if (!Number.isSafeInteger(loyaltyDiscount) || loyaltyDiscount > order.total) {
+          throw new BadRequestException('Redeemed points exceed order total');
+        }
+
+        const expectedAmount = order.total - loyaltyDiscount;
+        const paymentAmount = amount ?? expectedAmount;
 
         // Kiểm tra giao dịch có cùng idempotency key.
         const existing = await tx.payment.findUnique({
@@ -115,11 +127,12 @@ export class PaymentsService {
             amount,
             method,
             simulateFailure,
+            pointsToRedeem,
           );
         }
 
         // Không tin số tiền do frontend gửi.
-        if (paymentAmount !== order.total) {
+        if (paymentAmount !== expectedAmount) {
           throw new BadRequestException(
             'Payment amount does not match order total',
           );
@@ -129,7 +142,8 @@ export class PaymentsService {
         const payment = await tx.payment.create({
           data: {
             orderId: order.id,
-            amount: order.total,
+            amount: expectedAmount,
+            pointsUsed: pointsToRedeem,
             method,
             idempotencyKey: key,
             status: PaymentStatus.PENDING,
@@ -162,7 +176,21 @@ export class PaymentsService {
         );
 
         if (nextStatus === OrderStatus.PAID) {
-          await awardLoyaltyPointsOnce(tx, order.id);
+          if (pointsToRedeem > 0) {
+            const debit = await tx.user.updateMany({
+              where: {
+                id: userId,
+                loyaltyPoints: { gte: pointsToRedeem },
+              },
+              data: {
+                loyaltyPoints: { decrement: pointsToRedeem },
+              },
+            });
+            if (debit.count !== 1) {
+              throw new BadRequestException('Insufficient loyalty points');
+            }
+          }
+          await awardLoyaltyPointsOnce(tx, order.id, expectedAmount);
         }
 
         const updatedPayment = await tx.payment.update({
@@ -193,6 +221,7 @@ export class PaymentsService {
             amount,
             method,
             simulateFailure,
+            pointsToRedeem,
           );
         }
 
@@ -213,6 +242,7 @@ private replayExistingPayment(
   amount: number | undefined,
   method: PaymentMethod,
   simulateFailure: boolean,
+  pointsToRedeem: number,
 ) {
   const expectedStatus = simulateFailure
     ? PaymentStatus.FAILED
@@ -222,7 +252,8 @@ private replayExistingPayment(
     payment.orderId !== orderId ||
     (amount !== undefined && payment.amount !== amount) ||
     payment.method !== method ||
-    payment.status !== expectedStatus
+    payment.status !== expectedStatus ||
+    (payment.pointsUsed ?? 0) !== pointsToRedeem
   ) {
     throw new ConflictException(
       'Idempotency-Key reused with different payment data',

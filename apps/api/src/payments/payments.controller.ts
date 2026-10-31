@@ -38,6 +38,12 @@ class PaymentDto {
   @IsOptional()
   @IsBoolean()
   simulateFailure?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(2147483647)
+  pointsToRedeem?: number;
 }
 
 type AuthenticatedUser = {
@@ -72,6 +78,7 @@ export class PaymentsController {
       dto.method,
       key,
       dto.simulateFailure ?? false,
+      dto.pointsToRedeem ?? 0,
     );
   }
 }

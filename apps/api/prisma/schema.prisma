@@ -65,6 +65,7 @@ model Payment {
   orderId        Int
   idempotencyKey String       @unique
   amount         Int
+  pointsUsed     Int          @default(0)
   method         String
   status         PaymentStatus @default(PENDING)
   createdAt      DateTime     @default(now())

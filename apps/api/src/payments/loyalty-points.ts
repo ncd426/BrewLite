@@ -6,6 +6,7 @@ import {
 } from '@prisma/client';
 
 export const VND_PER_LOYALTY_POINT = 10000;
+export const VND_PER_REDEEMED_POINT = 1000;
 
 /**
  * Award loyalty points once, after an order is PAID.
@@ -14,6 +15,7 @@ export const VND_PER_LOYALTY_POINT = 10000;
 export async function awardLoyaltyPointsOnce(
   tx: Prisma.TransactionClient,
   orderId: number,
+  amountPaid?: number,
 ): Promise<number> {
   const order = await tx.order.findUnique({
     where: { id: orderId },
@@ -43,7 +45,7 @@ export async function awardLoyaltyPointsOnce(
   }
 
   const points = Math.floor(
-    order.total / VND_PER_LOYALTY_POINT,
+    (amountPaid ?? order.total) / VND_PER_LOYALTY_POINT,
   );
 
   // Atomically claim the reward for this order.

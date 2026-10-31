@@ -14,8 +14,11 @@ PostgreSQL. Prisma quản lý schema, migration và dữ liệu mẫu.
 - Xem danh sách sản phẩm, chi tiết, giá, ảnh và tồn kho.
 - Chọn kích cỡ, topping; quản lý giỏ hàng và đặt hàng.
 - Đăng ký, đăng nhập, xem hồ sơ và lịch sử đơn hàng.
-- Áp dụng mã khuyến mãi và mô phỏng thanh toán MoMo/thẻ.
-- Xem trạng thái và xác nhận đơn hàng.
+- Áp dụng mã khuyến mãi theo điều kiện, xem trước tiền giảm ngay tại Checkout.
+- Tích và sử dụng điểm thưởng: 1 điểm đổi 1.000đ; mỗi 10.000đ thực trả được 1 điểm sau khi đơn PAID.
+- Mô phỏng thanh toán Ví điện tử (QR mở trang xác nhận BrewLite) hoặc Thẻ; không xử lý tiền hay dữ liệu thẻ thật.
+- Xác nhận đơn hàng, lịch sử mua hàng và số tiền thực trả.
+- Order State Machine, Idempotency-Key, đặt đồng thời không vượt tồn kho (transaction + optimistic locking).
 
 ## Chạy bằng Docker Compose
 
@@ -78,14 +81,44 @@ header `Authorization: Bearer <accessToken>`.
 | `POST` | `/auth/register` | Không | Đăng ký với `name`, `email`, `password`. |
 | `POST` | `/auth/login` | Không | Đăng nhập với `email`, `password`; trả về `accessToken`. |
 | `GET` | `/users/me` | Có | Hồ sơ người dùng hiện tại. |
-| `POST` | `/orders` | Có | Tạo đơn hàng từ `items` và mã khuyến mãi tùy chọn. |
+| `POST` | `/orders` | Có | Tạo đơn hàng từ `items` và `promotionCode` tùy chọn; kiểm tra lại giá, mã và tồn kho ở Backend. |
+| `POST` | `/orders/promotion-preview` | Có | Xem trước khuyến mãi với `items`, `promotionCode`; không tạo đơn, không giữ/trừ tồn kho. |
 | `GET` | `/orders/me` | Có | Lịch sử đơn hàng của người dùng hiện tại. |
 | `GET` | `/orders/:id` | Có | Chi tiết đơn thuộc người dùng hiện tại. |
 | `POST` | `/payments` | Có | Mô phỏng thanh toán cho đơn hàng. |
 
 Thanh toán yêu cầu header `Idempotency-Key` và body gồm `orderId`, `method`
-(`MOMO` hoặc `CARD`). Có thể gửi `simulateFailure: true` để thử luồng thanh toán
-thất bại. Xem chi tiết API và DTO trong [apps/api/README.md](apps/api/README.md).
+(`MOMO` hoặc `CARD`). Có thể gửi `pointsToRedeem` (số điểm nguyên không âm).
+Trong môi trường phát triển, `simulateFailure: true` giúp thử luồng thất bại.
+Backend tự xác thực quyền sở hữu đơn, số tiền, số dư điểm và chống xử lý lại
+cùng key.
+
+### Quy tắc số tiền trong database
+
+| Trường | Ý nghĩa |
+| --- | --- |
+| `Order.discountAmount` | Tiền giảm do **mã khuyến mãi**. |
+| `Order.total` | Giá trị đơn **sau khuyến mãi, trước khi đổi điểm thưởng**. |
+| `Payment.pointsUsed` | Số điểm đã dùng cho lần thanh toán. |
+| `Payment.amount` | **Số tiền thực trả**, đã trừ giảm giá từ điểm. |
+| `User.loyaltyPoints` | Số dư điểm còn lại sau khi trừ và cộng điểm thành công. |
+
+Ví dụ: tiền hàng 39.000đ, giảm mã 10% = 3.900đ, đổi 10 điểm = 10.000đ;
+`Order.total` = 35.100đ, `Payment.amount` = 25.100đ. Đây là **thiết kế
+có chủ đích**, không phải chênh lệch sai.
+
+### Giới hạn của mô phỏng thanh toán
+
+- Ví điện tử tạo QR **dẫn đến trang `/checkout/confirm` của BrewLite**; QR không
+  phải QR chuyển khoản của MoMo/VNPay/ZaloPay. Người dùng phải đăng nhập cùng
+  tài khoản tạo đơn rồi bấm xác nhận. Thẻ cũng dùng màn hình xác nhận mô phỏng;
+  không thu thập số thẻ/CVV và không chuyển tiền thật.
+- Ở môi trường local, QR hoặc đường dẫn `localhost` mở được ngay trên **cùng
+  máy**. Muốn quét bằng điện thoại hoặc dùng mạng khác phải triển khai HTTPS
+  công khai/cấu hình mạng phù hợp; **MVP không yêu cầu chức năng này**.
+- Luồng mô phỏng chỉ phù hợp trình diễn/kiểm thử. Không sử dụng để nhận tiền
+  thật; một cổng thanh toán thực tế cần xác thực giao dịch từ nhà cung cấp.
+
 
 ## Tài khoản demo
 
@@ -100,62 +133,146 @@ Seed tạo các tài khoản local sau:
 Seed không ghi đè password của tài khoản đã có. Nếu đã seed từ trước, hãy dùng
 mật khẩu đã được thiết lập lúc tạo tài khoản đó.
 
-## Chạy trực tiếp không dùng Docker
+**Mã giảm giá demo:** Các bản ghi `Promotion` phụ thuộc database hiện tại.
+Không giả định `GIAM10` hoặc `GIAM20K` luôn tồn tại/đang hoạt động sau khi
+clone. `npm run seed` (và lệnh Docker Compose khởi động backend) có thể **tạo
+lại mã mẫu còn thiếu** theo `apps/api/prisma/seed-data.mjs`; seed không cần
+chạy lại nếu chỉ muốn giữ dữ liệu hiện có. Hãy kiểm tra `Promotion.isActive`,
+hạn sử dụng và đơn tối thiểu trước khi demo mã giảm giá.
 
-Đảm bảo PostgreSQL đang chạy, sau đó cấu hình `apps/api/.env` theo
-`apps/api/.env.example`. Đặt `DATABASE_URL` trỏ tới PostgreSQL trên host và đặt
-`JWT_SECRET`, `SEED_DEMO_PASSWORD` như hướng dẫn ở trên.
+## Chạy trực tiếp: Backend, Frontend, Prisma Studio (Windows PowerShell)
 
-Trong terminal backend:
+Đây là cách được nhóm sử dụng để demo trên **database local `brewlite`**.
+Trong **mỗi terminal**, mở PowerShell tại thư mục gốc của repository BrewLite
+(đường dẫn tùy máy). Khởi động PostgreSQL trong Docker, nhưng chạy NestJS/Next.js
+trực tiếp trên host:
 
 ```powershell
+docker compose stop backend frontend
+docker compose up -d db
+```
+
+**Terminal 1 — Backend:** Mở tại thư mục gốc BrewLite. Cấu hình `.env` ở root và `apps/api/.env`
+(`JWT_SECRET`, `DATABASE_URL`) trước. Khi chạy trên Windows phải kết nối tới
+`localhost:<cổng host>`, **không phải** hostname `db` của Docker.
+
+```powershell
+$line = Get-Content .env | Where-Object { $_ -match '^\s*DATABASE_URL=' } | Select-Object -First 1
+if (-not $line) { throw 'DATABASE_URL missing from root .env' }
+$url = ($line -replace '^\s*DATABASE_URL=', '').Trim().Trim('"').Trim("'")
+$port = (docker compose port db 5432 | Select-Object -First 1) -replace '^.*:', ''
+if ($port -notmatch '^\d+$') { throw 'PostgreSQL port unavailable' }
+$env:DATABASE_URL = $url -replace '@(?:db|localhost):\d+/', "@localhost:${port}/"
+# Kiểm tra đúng tên DB trước khi chạy migration (ví dụ /brewlite).
 cd apps/api
-npm ci
 npx prisma generate
-npx prisma migrate deploy
-npm run seed
+npx prisma migrate deploy # Chỉ chạy sau khi kiểm tra DB/backup nếu đang giữ dữ liệu
 npm run start:dev
 ```
 
-Trong terminal frontend:
+**Terminal 2 — Frontend:** Mở tại thư mục gốc BrewLite. `apps/web/.env.local` cần có
+`NEXT_PUBLIC_API_URL=http://localhost:4000` (đây là cấu hình local).
 
 ```powershell
 cd apps/web
-Copy-Item .env.example .env.local
-npm ci
-npm run dev
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
+npm run dev -- -p 3000
 ```
 
-Nếu API không chạy ở `http://localhost:4000`, cập nhật
-`NEXT_PUBLIC_API_URL` trong `apps/web/.env.local` rồi khởi động lại frontend.
+**Terminal 3 — Prisma Studio:** Mở tại thư mục gốc BrewLite. Lặp lại đoạn đặt `$env:DATABASE_URL` trong
+Terminal 1 từ root repo để trỏ đến **cùng database** Backend đang dùng, rồi:
 
-## Chạy test
+```powershell
+cd apps/api
+npx prisma studio --port 5555
+```
 
-Unit test backend:
+Truy cập: [Frontend](http://localhost:3000),
+[Backend API](http://localhost:4000/products),
+[Prisma Studio](http://localhost:5555).
+
+Nếu báo `EADDRINUSE` ở 3000/4000, xem `docker compose ps` và dừng service
+`frontend`/`backend` hoặc các terminal Node cũ; **không dừng tiến trình Docker
+Desktop/WSL bằng `Stop-Process`**. Trước khi dùng database đang có dữ liệu, sao
+lưu và kiểm tra migration. Không dùng `migrate reset` hoặc tùy chọn `--volumes` của `docker compose down`
+nếu muốn giữ dữ liệu.
+
+## Kiểm thử và build
+
+Các file `*.spec.ts` và `*.int.spec.ts` trong `apps/api/src/` là các **file test**
+của Task 10: chặn trạng thái sai, thanh toán trùng `Idempotency-Key`, đặt
+đồng thời không vượt tồn kho, mã giảm giá và điểm thưởng. Jest mặc định bỏ qua
+những DB integration test có điều kiện `RUN_DB_INTEGRATION=1`.
 
 ```powershell
 cd apps/api
 npm test -- --runInBand
-```
+npm run test:e2e -- --runInBand
+npm run build
 
-End-to-end test backend:
-
-```powershell
-cd apps/api
-npm run test:e2e
-```
-
-End-to-end test cần database và biến môi trường API đã được cấu hình. Build
-frontend:
-
-```powershell
-cd apps/web
+cd ../web
+npx tsc --noEmit
 npm run build
 ```
 
+Để chạy **toàn bộ DB integration test** (bao gồm kiểm tra cạnh tranh trên
+PostgreSQL), mở PowerShell tại repo root và chỉ dùng database **riêng** có tên `brewlite_task10_*`, không chạy
+trên `brewlite` đang có đơn hàng thật:
+
+```powershell
+$dbName = "brewlite_task10_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+docker compose exec -T db createdb -U postgres $dbName
+$line = Get-Content .env | Where-Object { $_ -match '^\s*DATABASE_URL=' } | Select-Object -First 1
+$url = ($line -replace '^\s*DATABASE_URL=', '').Trim().Trim('"').Trim("'")
+$port = (docker compose port db 5432 | Select-Object -First 1) -replace '^.*:', ''
+$env:DATABASE_URL = $url -replace '@(?:db|localhost):\d+/[^?]+', "@localhost:${port}/$dbName"
+$env:RUN_DB_INTEGRATION = '1'
+cd apps/api
+npx prisma migrate deploy
+npx prisma generate
+npm test -- --runInBand
+Remove-Item Env:\RUN_DB_INTEGRATION -ErrorAction SilentlyContinue
+Remove-Item Env:\DATABASE_URL -ErrorAction SilentlyContinue
+```
+
+Kết quả nghiệm thu local gần nhất (31/10/2026): **17/17 suites, 122/122
+Backend tests, 1/1 E2E test PASS**; Backend và Frontend build thành công. Đây là kết
+quả đã chạy trên máy phát triển; người nhận bàn giao nên tự chạy lại trong môi
+trường của mình. Bài E2E hiện chỉ kiểm tra `GET /`; nghiệp vụ Task 10 được kiểm
+tra bằng các HTTP/DB integration test riêng và demo thủ công.
+
+
 ## Tài liệu
 
-- [Hướng dẫn API](apps/api/README.md)
 - [Triển khai local](docs/deployment.md)
 - [Hướng dẫn migration database](docs/database-migrations.md)
 - [Yêu cầu chức năng](docs/requirements/requirements.md)
+- [Ma trận truy vết](docs/traceability-matrix.md)
+
+
+### Kiểm thử hiệu năng API
+
+**Yêu cầu phi chức năng:** Thời gian phản hồi API dưới **500 ms** với dữ liệu mẫu.
+
+**Môi trường và phương pháp kiểm thử:**
+
+- Backend: NestJS tại `http://localhost:4000`.
+- Cơ sở dữ liệu: PostgreSQL (môi trường local).
+- Công cụ: `curl` chạy bằng PowerShell.
+- Mỗi API được gọi 5 lần khởi động (warm-up, không tính vào kết quả), sau đó đo 50 lần.
+
+| API | Số lượt đo | Trung bình | P95 | Lâu nhất | Lỗi HTTP | Kết quả |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `GET /products` | 50 | 3,23 ms | 4,46 ms | 4,81 ms | 0 | PASS |
+| `GET /products/1` | 50 | 3,15 ms | 3,60 ms | 3,72 ms | 0 | PASS |
+
+**Kết quả:** Cả hai API được kiểm thử đều có thời gian phản hồi dưới **500 ms**, không phát sinh lỗi HTTP trong tổng số **100 lượt đo**. Như vậy, hai API này đáp ứng yêu cầu hiệu năng với dữ liệu mẫu trên môi trường local.
+
+**Giới hạn:** Kết quả chỉ phản ánh hai API được đo tại máy phát triển, không đại diện cho toàn bộ API hoặc hiệu năng khi triển khai thực tế.
+
+### Đối chiếu yêu cầu bàn giao
+
+Đồ án sử dụng NestJS, Next.js, PostgreSQL/Prisma, Docker Compose và Git. Phạm
+vi MVP có thanh toán **mô phỏng**. Sau khi build và test, nhóm cần tạo Pull
+Request, review/merge và chuẩn bị Sprint Review/Retrospective theo quy trình
+Scrum; các bước quy trình này không được tự động hoàn thành bởi việc test PASS.

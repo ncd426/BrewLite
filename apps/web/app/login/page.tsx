@@ -24,7 +24,10 @@ export default function LoginPage() {
         ? await register(name, email, password)
         : await login(email, password);
       saveAccessToken(auth.accessToken, auth.name, auth.email);
-      router.replace('/cart');
+      // Return to a QR confirmation only when the path is known-safe.
+      const next = new URLSearchParams(window.location.search).get('next');
+      const safePath = next?.startsWith('/checkout/confirm?') ? next : '/cart';
+      router.replace(safePath as any);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể xác thực tài khoản.');
     } finally {

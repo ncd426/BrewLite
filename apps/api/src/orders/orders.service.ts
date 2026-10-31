@@ -8,7 +8,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { OrderStatus as PrismaOrderStatus } from '@prisma/client';
+import { OrderStatus as PrismaOrderStatus, PaymentStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderItemDto } from './dto/create-order.dto';
@@ -94,6 +94,11 @@ const orderHistorySelect = {
   total: true,
   createdAt: true,
   discountAmount: true,
+  payments: {
+    where: { status: PaymentStatus.SUCCESS },
+    take: 1,
+    select: { amount: true, pointsUsed: true },
+  },
   items: {
     orderBy: { id: 'asc' },
     select: {
@@ -119,12 +124,15 @@ type OrderHistoryRecord = Prisma.OrderGetPayload<{
 }>;
 
 function formatOrder(order: OrderHistoryRecord) {
+  const paidPayment = order.payments?.[0];
   return {
     id: order.id,
     orderId: order.id,
     status: order.status,
     total: order.total,
     discountAmount: order.discountAmount,
+    pointsUsed: paidPayment?.pointsUsed ?? 0,
+    paidAmount: paidPayment?.amount ?? null,
     createdAt: order.createdAt,
     items: order.items.map((item) => ({
       id: item.id,
