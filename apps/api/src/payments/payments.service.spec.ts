@@ -128,6 +128,7 @@ describe('PaymentsService State Machine integration', () => {
       const payment: Payment = {
         id: nextPaymentId++,
         ...data,
+        pointsUsed: 0,
         createdAt: new Date(),
       };
 

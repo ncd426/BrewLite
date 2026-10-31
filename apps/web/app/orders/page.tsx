@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   fetchMyOrders,
   getAccessToken,
+  LOYALTY_REDEMPTION_VND,
   OrderHistoryItem,
 } from '@/lib/api';
 
@@ -132,10 +133,21 @@ useEffect(() => {
                   ))}
                 </div>
 
+                {(order.discountAmount ?? 0) > 0 && (
+                  <div className="text-sm text-emerald-700">
+                    Giảm bằng mã khuyến mãi: −{(order.discountAmount ?? 0).toLocaleString('vi-VN')}đ
+                  </div>
+                )}
+                {(order.pointsUsed ?? 0) > 0 && (
+                  <div className="text-sm text-emerald-700">
+                    Đã dùng {order.pointsUsed} điểm, giảm{' '}
+                    {((order.pointsUsed ?? 0) * LOYALTY_REDEMPTION_VND).toLocaleString('vi-VN')}đ
+                  </div>
+                )}
                 <div className="flex justify-between items-center pt-3 border-t">
                   <span className="font-medium text-gray-700">Tổng thanh toán:</span>
                   <span className="text-lg font-bold text-amber-600">
-                    {order.total.toLocaleString('vi-VN')} đ
+                    {(order.paidAmount ?? order.total).toLocaleString('vi-VN')} đ
                   </span>
                 </div>
               </div>
