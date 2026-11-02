@@ -6,6 +6,8 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import {
   PRODUCTS,
+  INGREDIENTS,
+  RECIPES,
   USERS,
   PROMOTIONS,
   ORDERS,
@@ -14,6 +16,7 @@ import {
   unitPrice,
   validateFixtures,
 } from './seed-data.mjs';
+import { seedIngredientRecipes } from './seed-recipes.mjs';
 
 if (existsSync(resolve(process.cwd(), '.env'))) {
   process.loadEnvFile(resolve(process.cwd(), '.env'));
@@ -162,10 +165,14 @@ async function main() {
   await prisma.$connect();
   console.log('Seeding BrewLite local database (existing rows will not be replaced)...');
   const products = await seedProducts();
+  const inventory = await seedIngredientRecipes(prisma, products.found, {
+    initializeEmptyStock: process.argv.includes('--initialize-inventory'),
+  });
   const promotions = await seedPromotions();
   const users = await seedUsers();
   const ordersCreated = await seedOrders(products.found, users.found, promotions.found);
   console.log(`Products: ${PRODUCTS.length} fixtures, ${products.created} created, ${products.imageUpdated} images updated`);
+  console.log(`Inventory: ${INGREDIENTS.length} ingredients, ${inventory.ingredientsCreated} created, ${inventory.ingredientsInitialized} initialized; ${RECIPES.length} recipes, ${inventory.recipesCreated} created`);
   console.log(`Promotions: ${PROMOTIONS.length} fixtures, ${promotions.created} created`);
   console.log(`Users: ${USERS.length} demo accounts, ${users.created} created`);
   console.log(`Orders/payments: ${ORDERS.length} fixture pairs, ${ordersCreated} pairs created`);
