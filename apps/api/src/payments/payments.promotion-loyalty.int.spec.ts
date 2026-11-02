@@ -30,6 +30,7 @@ dbDescribe('Promotion and loyalty - PostgreSQL integration', () => {
 
   let userId = 0;
   let productId = 0;
+  let ingredientId = 0;
   let promotionId = 0;
   let promotionCode = '';
 
@@ -105,12 +106,22 @@ dbDescribe('Promotion and loyalty - PostgreSQL integration', () => {
       data: {
         name: `Promotion Test ${suffix}`,
         price: 35000,
-        stock: 10,
-        version: 0,
       },
     });
 
     productId = product.id;
+    const ingredient = await prisma.ingredient.create({
+      data: {
+        code: `PAYMENT-${suffix}`,
+        name: `Payment ingredient ${suffix}`,
+        unit: 'ml',
+        stockQuantity: 10,
+      },
+    });
+    ingredientId = ingredient.id;
+    await prisma.productIngredient.create({
+      data: { productId, ingredientId, quantity: 1 },
+    });
     promotionCode = `T10${suffix.slice(0, 14).toUpperCase()}`;
 
     const promotion = await prisma.promotion.create({
@@ -163,6 +174,11 @@ dbDescribe('Promotion and loyalty - PostgreSQL integration', () => {
         where: { id: productId },
       });
     }
+    if (ingredientId) {
+      await prisma.ingredient.deleteMany({
+        where: { id: ingredientId },
+      });
+    }
 
     if (userId) {
       await prisma.user.deleteMany({
@@ -172,6 +188,7 @@ dbDescribe('Promotion and loyalty - PostgreSQL integration', () => {
 
     userId = 0;
     productId = 0;
+    ingredientId = 0;
     promotionId = 0;
   });
 
@@ -287,12 +304,11 @@ dbDescribe('Promotion and loyalty - PostgreSQL integration', () => {
 
     expect(invalid.body.statusCode).toBe(400);
 
-    const stockBefore = await prisma.product.findUnique({
-      where: { id: productId },
+    const stockBefore = await prisma.ingredient.findUnique({
+      where: { id: ingredientId },
     });
 
-    expect(stockBefore?.stock).toBe(10);
-    expect(stockBefore?.version).toBe(0);
+    expect(stockBefore?.stockQuantity).toBe(10);
 
     const createdOrders = await prisma.order.count({
       where: { userId },

@@ -1,5 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  isRecipeInStock,
+  type RecipeIngredient,
+} from '../inventory/recipe-inventory';
 
 // Preserve the original exported type for teammates importing Product.
 export type Product = {
@@ -7,28 +11,57 @@ export type Product = {
   name: string;
   price: number;
   imageUrl: string | null;
-  stock: number;
+  inStock: boolean;
 };
 
-// Only expose fields required by the menu API. Do not leak internal DB metadata.
 const productFields = {
   id: true,
   name: true,
   price: true,
   imageUrl: true,
-  stock: true,
+  productIngredients: {
+    select: {
+      ingredientId: true,
+      quantity: true,
+      isOptional: true,
+      ingredient: {
+        select: {
+          name: true,
+          stockQuantity: true,
+        },
+      },
+    },
+  },
 } as const;
+
+function toProduct(product: {
+  id: number;
+  name: string;
+  price: number;
+  imageUrl: string | null;
+  productIngredients: RecipeIngredient[];
+}): Product {
+  return {
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    imageUrl: product.imageUrl,
+    inStock: isRecipeInStock(product.productIngredients),
+  };
+}
 
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // GET /products: one indexed DB query, stable order, JSON array.
-  findAll(): Promise<Product[]> {
-    return this.prisma.product.findMany({
+  async findAll(): Promise<Product[]> {
+    const products = await this.prisma.product.findMany({
       select: productFields,
       orderBy: { id: 'asc' },
     });
+
+    return products.map(toProduct);
   }
 
   // GET /products/:id: 404 when the requested product does not exist.
@@ -42,6 +75,6 @@ export class ProductsService {
       throw new NotFoundException(`Product ${id} not found`);
     }
 
-    return product;
+    return toProduct(product);
   }
 }

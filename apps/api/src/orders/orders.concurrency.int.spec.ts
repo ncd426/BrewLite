@@ -22,6 +22,7 @@ dbDescribe('Concurrent orders - PostgreSQL integration', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let productId = 0;
+  let ingredientId = 0;
 
   const userIds: number[] = [];
   const initialStock = 15;
@@ -87,16 +88,31 @@ dbDescribe('Concurrent orders - PostgreSQL integration', () => {
 
     const runId = randomUUID();
 
+    const ingredient = await prisma.ingredient.create({
+      data: {
+        code: `TEST-${runId}`,
+        name: `Task10 Test Ingredient ${runId}`,
+        unit: 'ml',
+        stockQuantity: initialStock,
+      },
+    });
+    ingredientId = ingredient.id;
+
     const product = await prisma.product.create({
       data: {
         name: `Task10 Test Product ${runId}`,
         price: 30000,
-        stock: initialStock,
-        version: 0,
       },
     });
 
     productId = product.id;
+    await prisma.productIngredient.create({
+      data: {
+        productId,
+        ingredientId,
+        quantity: 1,
+      },
+    });
 
     for (let i = 0; i < buyers; i++) {
       const user = await prisma.user.create({
@@ -143,6 +159,11 @@ dbDescribe('Concurrent orders - PostgreSQL integration', () => {
       if (prisma && productId) {
         await prisma.product.deleteMany({
           where: { id: productId },
+        });
+      }
+      if (prisma && ingredientId) {
+        await prisma.ingredient.deleteMany({
+          where: { id: ingredientId },
         });
       }
     } finally {
@@ -200,12 +221,11 @@ dbDescribe('Concurrent orders - PostgreSQL integration', () => {
     expect(success).toHaveLength(1);
     expect(rejected).toHaveLength(buyers - 1);
 
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
+    const ingredient = await prisma.ingredient.findUnique({
+      where: { id: ingredientId },
     });
 
-    expect(product?.stock).toBe(0);
-    expect(product?.version).toBe(1);
+    expect(ingredient?.stockQuantity).toBe(0);
 
     const orders = await prisma.order.findMany({
       where: { userId: { in: userIds } },
