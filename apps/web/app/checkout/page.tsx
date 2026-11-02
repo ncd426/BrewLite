@@ -17,7 +17,11 @@ import {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, getTotalPrice } = useCartStore();
+  const cartItems = useCartStore((state) => state.items);
+  const checkoutItemKeys = useCartStore((state) => state.checkoutItemKeys);
+  const items = cartItems.filter((item) =>
+    checkoutItemKeys === null || checkoutItemKeys.includes(item.key),
+  );
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('MOMO');
   const [loading, setLoading] = useState(false);
@@ -47,7 +51,10 @@ export default function CheckoutPage() {
     }
   }, [router]);
 
-  const totalPrice = getTotalPrice();
+  const totalPrice = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
   const cartSignature = JSON.stringify(items.map((item) => ({
     key: item.key, productId: item.id, size: item.size,
     qty: item.quantity, price: item.price, toppings: item.toppings,
@@ -143,6 +150,7 @@ export default function CheckoutPage() {
         orderId: String(targetOrderId),
         method: paymentMethod,
         points: String(appliedPoints),
+        cartKeys: items.map((item) => item.key).join('|'),
       });
       router.push(
         `${paymentMethod === 'MOMO' ? '/checkout/qr' : '/checkout/confirm'}?${params.toString()}` as any,
@@ -164,7 +172,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (items.length === 0) {
+  if (cartItems.length === 0) {
     return (
       <main className="mx-auto max-w-xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold text-gray-900">Giỏ hàng của bạn đang trống</h1>
@@ -174,6 +182,18 @@ export default function CheckoutPage() {
           className="mt-6 inline-block rounded-xl bg-amber-600 px-6 py-2.5 font-medium text-white transition hover:bg-amber-700"
         >
           Khám phá thực đơn
+        </Link>
+      </main>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <main className="mx-auto max-w-xl px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Chưa chọn món thanh toán</h1>
+        <p className="mt-2 text-gray-600">Quay lại giỏ hàng và chọn ít nhất một món.</p>
+        <Link href="/cart" className="mt-6 inline-block rounded-xl bg-amber-600 px-6 py-2.5 font-medium text-white transition hover:bg-amber-700">
+          Quay lại giỏ hàng
         </Link>
       </main>
     );

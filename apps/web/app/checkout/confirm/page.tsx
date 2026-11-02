@@ -29,6 +29,7 @@ function ConfirmContent() {
   const query = useSearchParams();
   const router = useRouter();
   const clearCart = useCartStore((state) => state.clearCart);
+  const removeItems = useCartStore((state) => state.removeItems);
   const orderId = parseOrderId(query.get('orderId'));
   const points = parsePoints(query.get('points'));
   const method: PaymentMethod | null = query.get('method') === 'MOMO'
@@ -72,6 +73,14 @@ function ConfirmContent() {
   const amount = order ? Math.max(0, order.total - discount) : 0;
   const invalidPoints = order !== null && (points === null || discount > order.total);
   const loginNext = `/checkout/confirm?${query.toString()}`;
+  const removePurchasedItems = () => {
+    const cartKeys = query.get('cartKeys');
+    if (cartKeys === null) {
+      clearCart();
+      return;
+    }
+    removeItems(cartKeys.split('|').filter(Boolean));
+  };
 
   const handleConfirm = async () => {
     if (submittingRef.current || !order || paid || !method || orderId === null || points === null || invalidPoints) return;
@@ -88,7 +97,7 @@ function ConfirmContent() {
       }
       const result = await processPayment({ orderId, method, pointsToRedeem: points }, key);
       if (result.status === 'PAID') {
-        clearCart();
+        removePurchasedItems();
         router.replace(`/checkout/success?orderId=${orderId}` as any);
       } else {
         setError(result.message || 'Giao dịch mô phỏng không thành công.');
@@ -99,7 +108,7 @@ function ConfirmContent() {
         const latest = await fetchOrderById(orderId);
         setOrder(latest);
         if (['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(latest.status)) {
-          clearCart();
+          removePurchasedItems();
           router.replace(`/checkout/success?orderId=${orderId}` as any);
         }
       } catch {
