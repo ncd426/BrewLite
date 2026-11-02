@@ -8,12 +8,28 @@ import { useCartStore } from '@/lib/useCartStore';
 export default function CartPage() {
   const router = useRouter();
   const items = useCartStore((state) => state.items);
+  const checkoutItemKeys = useCartStore((state) => state.checkoutItemKeys);
+  const setCheckoutItemKeys = useCartStore((state) => state.setCheckoutItemKeys);
   const updateQuantity = useCartStore((state) => state.updateQuantity);
   const removeFromCart = useCartStore((state) => state.removeFromCart);
   const clearCart = useCartStore((state) => state.clearCart);
-  const total = useCartStore((state) => state.getTotalPrice());
+  const selectedItems = items.filter((item) =>
+    checkoutItemKeys === null || checkoutItemKeys.includes(item.key),
+  );
+  const total = selectedItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0,
+  );
+
+  const toggleCheckoutItem = (key: string) => {
+    const selected = new Set(checkoutItemKeys ?? items.map((item) => item.key));
+    if (selected.has(key)) selected.delete(key);
+    else selected.add(key);
+    setCheckoutItemKeys([...selected]);
+  };
 
   const handleProceedToCheckout = () => {
+    if (selectedItems.length === 0) return;
     if (!getAccessToken()) {
       router.push('/login?next=%2Fcheckout');
       return;
@@ -43,8 +59,20 @@ export default function CartPage() {
       ) : (
         <div className="space-y-4">
           {items.map((item) => (
-            <div key={item.key} className="flex items-center justify-between border-b py-3">
-              <div>
+            <div key={item.key} className="flex flex-wrap items-center gap-3 border-b py-4 sm:flex-nowrap">
+              <input
+                type="checkbox"
+                aria-label={`Chọn ${item.name} để thanh toán`}
+                checked={checkoutItemKeys === null || checkoutItemKeys.includes(item.key)}
+                onChange={() => toggleCheckoutItem(item.key)}
+                className="h-4 w-4 shrink-0 accent-amber-700"
+              />
+              <img
+                src={item.imageUrl}
+                alt={item.name}
+                className="h-20 w-20 shrink-0 rounded-lg object-cover"
+              />
+              <div className="min-w-0 flex-1">
                 <h3 className="font-semibold">{item.name} ({item.size})</h3>
                 {item.toppings.length > 0 && (
                   <p className="text-xs text-amber-800">Topping: {item.toppings.join(', ')}</p>
@@ -52,7 +80,7 @@ export default function CartPage() {
                 <p className="text-sm text-gray-600">{item.price.toLocaleString('vi-VN')}đ</p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="ml-auto flex items-center gap-3">
                 <div className="flex items-center rounded-lg border border-gray-200">
                   <button
                     onClick={() => updateQuantity(item.key, item.quantity - 1)}
@@ -80,16 +108,19 @@ export default function CartPage() {
 
           <div className="rounded-2xl bg-amber-900 p-5 text-white">
             <div className="flex items-center justify-between text-lg font-semibold">
-              <span>Tổng thanh toán</span>
+              <span>Tổng thanh toán ({selectedItems.length} món)</span>
               <span>{total.toLocaleString('vi-VN')}đ</span>
             </div>
 
             <button
               type="button"
               onClick={handleProceedToCheckout}
-              className="mt-4 block w-full rounded-xl bg-white px-4 py-3 text-center font-medium text-amber-900 transition hover:bg-amber-50"
+              disabled={selectedItems.length === 0}
+              className="mt-4 block w-full rounded-xl bg-white px-4 py-3 text-center font-medium text-amber-900 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {getAccessToken() ? 'Tiến hành thanh toán' : 'Đăng nhập để thanh toán'}
+              {selectedItems.length === 0
+                ? 'Chọn món để thanh toán'
+                : getAccessToken() ? 'Tiến hành thanh toán' : 'Đăng nhập để thanh toán'}
             </button>
           </div>
         </div>

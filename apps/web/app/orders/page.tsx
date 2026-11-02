@@ -125,6 +125,11 @@ useEffect(() => {
                         <span className="text-xs text-gray-500 ml-2">
                           (Size {item.size} x {item.qty})
                         </span>
+                        {item.toppings && item.toppings.length > 0 && (
+                          <p className="mt-1 text-xs text-amber-800">
+                            Topping: {item.toppings.join(', ')}
+                          </p>
+                        )}
                       </div>
                       <span className="text-gray-700">
                         {((item as any).lineTotal ?? (((item as any).unitPrice || item.price || 0) * (item.qty || 1))).toLocaleString('vi-VN')} đ

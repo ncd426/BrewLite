@@ -15,9 +15,12 @@ export type CartItem = {
 
 interface CartState {
   items: CartItem[];
+  checkoutItemKeys: string[] | null;
   addToCart: (item: Omit<CartItem, 'quantity' | 'key'>) => void;
   updateQuantity: (key: string, quantity: number) => void;
   removeFromCart: (key: string) => void;
+  setCheckoutItemKeys: (keys: string[] | null) => void;
+  removeItems: (keys: string[]) => void;
   clearCart: () => void;
   getTotalPrice: () => number;
   getTotalItems: () => number;
@@ -27,6 +30,7 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      checkoutItemKeys: null,
 
       addToCart: (newItem) => {
         const size = newItem.size || 'S';
@@ -64,20 +68,34 @@ export const useCartStore = create<CartState>()(
       },
 
       updateQuantity: (key: string, quantity: number) => {
-        set((state) => ({
-          items: state.items
+        set((state) => {
+          const items = state.items
             .map((item) => (item.key === key ? { ...item, quantity: Math.max(0, quantity) } : item))
-            .filter((item) => item.quantity > 0),
-        }));
+            .filter((item) => item.quantity > 0);
+          return {
+            items,
+            checkoutItemKeys: state.checkoutItemKeys?.filter((itemKey) =>
+              items.some((item) => item.key === itemKey),
+            ) ?? null,
+          };
+        });
       },
 
       removeFromCart: (key: string) => {
         set((state) => ({
           items: state.items.filter((item) => item.key !== key),
+          checkoutItemKeys: state.checkoutItemKeys?.filter((itemKey) => itemKey !== key) ?? null,
         }));
       },
 
-      clearCart: () => set({ items: [] }),
+      setCheckoutItemKeys: (keys) => set({ checkoutItemKeys: keys }),
+
+      removeItems: (keys) => set((state) => ({
+        items: state.items.filter((item) => !keys.includes(item.key)),
+        checkoutItemKeys: state.checkoutItemKeys?.filter((key) => !keys.includes(key)) ?? null,
+      })),
+
+      clearCart: () => set({ items: [], checkoutItemKeys: null }),
 
       getTotalPrice: () => {
         return get().items.reduce((sum, item) => sum + item.price * item.quantity, 0);

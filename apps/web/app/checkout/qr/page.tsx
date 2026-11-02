@@ -23,7 +23,9 @@ function QrPaymentContent() {
   const query = useSearchParams();
   const orderId = toPositiveInt(query.get('orderId'));
   const points = toPoints(query.get('points'));
+  const cartKeys = query.get('cartKeys');
   const clearCart = useCartStore((state) => state.clearCart);
+  const removeItems = useCartStore((state) => state.removeItems);
   const [order, setOrder] = useState<OrderHistoryItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [origin, setOrigin] = useState('');
@@ -55,7 +57,7 @@ function QrPaymentContent() {
         setOrder(current);
         setError(null);
         if (['PAID', 'PREPARING', 'READY', 'COMPLETED'].includes(current.status)) {
-          clearCart();
+          removePurchasedItems();
           router.replace(`/checkout/success?orderId=${orderId}` as any);
         }
       } catch (cause) {
@@ -84,16 +86,25 @@ function QrPaymentContent() {
       url.searchParams.set('orderId', String(orderId));
       url.searchParams.set('method', 'MOMO');
       url.searchParams.set('points', String(points));
+      if (cartKeys !== null) url.searchParams.set('cartKeys', cartKeys);
       return url.toString();
     } catch {
       return null;
     }
-  }, [orderId, points, origin]);
+  }, [orderId, points, origin, cartKeys]);
 
   const qrImage = confirmationUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&data=${encodeURIComponent(confirmationUrl)}`
     : null;
   const pointsDiscount = (points ?? 0) * LOYALTY_REDEMPTION_VND;
+  const removePurchasedItems = () => {
+    const cartKeys = query.get('cartKeys');
+    if (cartKeys === null) {
+      clearCart();
+      return;
+    }
+    removeItems(cartKeys.split('|').filter(Boolean));
+  };
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
