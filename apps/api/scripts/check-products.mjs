@@ -24,8 +24,8 @@ function validProduct(p) {
   return p && Number.isInteger(p.id) && p.id > 0 &&
     typeof p.name === 'string' && p.name.trim().length > 0 &&
     Number.isInteger(p.price) && p.price > 0 &&
-    typeof p.imageUrl === 'string' && p.imageUrl.startsWith('https://') &&
-    Number.isInteger(p.stock) && p.stock >= 0;
+    typeof p.imageUrl === 'string' && p.imageUrl.startsWith('/images/') &&
+    typeof p.inStock === 'boolean';
 }
 
 function percentile(samples, p) {
@@ -41,7 +41,7 @@ async function main() {
   assert.equal(list.status, 200, 'GET /products must return HTTP 200');
   assert.ok(Array.isArray(list.json), 'GET /products must return a JSON array');
   assert.ok(list.json.length >= 8, 'Seed must provide at least 8 products');
-  assert.ok(list.json.every(validProduct), 'All menu products must have id, name, price, imageUrl, stock');
+  assert.ok(list.json.every(validProduct), 'All menu products must have id, name, price, imageUrl, inStock');
   assert.ok(list.json.every((p, i) => i === 0 || list.json[i - 1].id <= p.id), 'Products must be ordered by id');
 
   const first = list.json[0];

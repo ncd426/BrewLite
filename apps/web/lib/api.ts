@@ -3,7 +3,7 @@ export type Product = {
   name: string;
   price: number;
   imageUrl: string;
-  stock: number;
+  inStock: boolean;
 };
 
 export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';

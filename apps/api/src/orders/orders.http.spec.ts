@@ -40,24 +40,25 @@ describe('POST /orders', () => {
           Array<{
             id: number;
             price: number;
-            stock: number;
-            version: number;
+            productIngredients: {
+              ingredientId: number;
+              quantity: number;
+              isOptional: boolean;
+              ingredient: { name: string; stockQuantity: number };
+            }[];
           }>
         >
       >(),
-      findUnique: jest.fn<
-        () => Promise<{ stock: number; version: number } | null>
-      >(),
+    },
+    ingredient: {
       updateMany: jest.fn<
         (args: {
           where: {
             id: number;
-            version: number;
-            stock: { gte: number };
+            stockQuantity: { gte: number };
           };
           data: {
-            stock: { decrement: number };
-            version: { increment: number };
+            stockQuantity: { decrement: number };
           };
         }) => Promise<{ count: number }>
       >(),
@@ -78,7 +79,6 @@ describe('POST /orders', () => {
   };
 
   let currentStock = 12;
-  let currentVersion = 0;
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -127,31 +127,28 @@ describe('POST /orders', () => {
 
     tx.user.findUnique.mockResolvedValue({ id: 7 });
     currentStock = 12;
-    currentVersion = 0;
 
     tx.product.findMany.mockImplementation(async () => [
       {
         id: 1,
         price: 35000,
-        stock: currentStock,
-        version: currentVersion,
+        productIngredients: [{
+          ingredientId: 1,
+          quantity: 1,
+          isOptional: false,
+          ingredient: { name: 'Espresso', stockQuantity: currentStock },
+        }],
       },
     ]);
-    tx.product.findUnique.mockImplementation(async () => ({
-      stock: currentStock,
-      version: currentVersion,
-    }));
-    tx.product.updateMany.mockImplementation(async ({ where, data }) => {
+    tx.ingredient.updateMany.mockImplementation(async ({ where, data }) => {
       if (
         where.id !== 1 ||
-        where.version !== currentVersion ||
-        currentStock < where.stock.gte
+        currentStock < where.stockQuantity.gte
       ) {
         return { count: 0 };
       }
 
-      currentStock -= data.stock.decrement;
-      currentVersion += data.version.increment;
+      currentStock -= data.stockQuantity.decrement;
       return { count: 1 };
     });
 
@@ -295,6 +292,6 @@ describe('POST /orders', () => {
     ).toHaveLength(15);
     expect(currentStock).toBe(0);
     expect(tx.order.create).toHaveBeenCalledTimes(5);
-    expect(tx.product.updateMany).toHaveBeenCalled();
+    expect(tx.ingredient.updateMany).toHaveBeenCalled();
   });
 });

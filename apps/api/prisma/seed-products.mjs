@@ -4,7 +4,8 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PrismaClient } from '@prisma/client';
-import { PRODUCTS } from './seed-data.mjs';
+import { INGREDIENTS, PRODUCTS, RECIPES } from './seed-data.mjs';
+import { seedIngredientRecipes } from './seed-recipes.mjs';
 
 const envPath = resolve(process.cwd(), '.env');
 if (existsSync(envPath)) {
@@ -20,7 +21,6 @@ function validateProductFixtures() {
   }
   for (const product of PRODUCTS) {
     if (!product.name?.trim() || !Number.isInteger(product.price) || product.price <= 0 ||
-        !Number.isInteger(product.stock) || product.stock < 0 ||
         typeof product.imageUrl !== 'string' || !/^\/images\/[A-Za-z0-9._-]+$/.test(product.imageUrl)) {
       throw new Error(`Invalid menu fixture: ${JSON.stringify(product)}`);
     }
@@ -56,7 +56,7 @@ async function main() {
         await prisma.product.create({ data: product });
         created++;
       } else if (existing.imageUrl !== product.imageUrl) {
-        // Keep menu images in sync without changing prices, stock, or IDs.
+        // Keep menu images in sync without changing prices or IDs.
         await prisma.product.update({
           where: { id: existing.id },
           data: { imageUrl: product.imageUrl },
@@ -67,9 +67,22 @@ async function main() {
       }
     }
 
+    const productsByName = new Map();
+    for (const product of PRODUCTS) {
+      const databaseProduct = await prisma.product.findFirst({
+        where: { name: product.name },
+        orderBy: { id: 'asc' },
+      });
+      if (databaseProduct) productsByName.set(product.name, databaseProduct);
+    }
+    const inventory = await seedIngredientRecipes(prisma, productsByName, {
+      initializeEmptyStock: process.argv.includes('--initialize-inventory'),
+    });
+
     const total = await prisma.product.count();
     if (total < 8) throw new Error(`Only ${total} products in database; at least 8 required.`);
     console.log(`BrewLite products: ${PRODUCTS.length} menu fixtures, ${created} added, ${kept} kept, ${imageUpdated} images synchronized.`);
+    console.log(`Inventory: ${INGREDIENTS.length} ingredients, ${inventory.ingredientsCreated} created, ${inventory.ingredientsInitialized} initialized; ${RECIPES.length} recipes, ${inventory.recipesCreated} created.`);
     console.log(`Product rows in PostgreSQL: ${total}. Re-running does not duplicate the fixture names.`);
   } finally {
     await prisma.$disconnect();

@@ -3,6 +3,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { SIZE_SURCHARGE, TOPPING_PRICE } from './pricing';
 import { resolvePromotion } from './promotion-rule';
+import {
+  buildIngredientRequirements,
+  validateIngredientAvailability,
+} from '../inventory/recipe-inventory';
 
 const MAX_DATABASE_INT = 2147483647;
 
@@ -32,7 +36,23 @@ export class PromotionPreviewService {
       const ids = [...new Set(dto.items.map((item) => item.productId))];
       const products = await tx.product.findMany({
         where: { id: { in: ids } },
-        select: { id: true, price: true, stock: true },
+        select: {
+          id: true,
+          price: true,
+          productIngredients: {
+            select: {
+              ingredientId: true,
+              quantity: true,
+              isOptional: true,
+              ingredient: {
+                select: {
+                  name: true,
+                  stockQuantity: true,
+                },
+              },
+            },
+          },
+        },
       });
       const productById = new Map(products.map((product) => [product.id, product]));
       const requestedQuantity = new Map<number, number>();
@@ -72,11 +92,11 @@ export class PromotionPreviewService {
         );
       }
 
-      for (const [productId, qty] of requestedQuantity) {
-        if ((productById.get(productId)?.stock ?? 0) < qty) {
-          throw new BadRequestException(`Insufficient stock for product ${productId}`);
-        }
-      }
+      const ingredientRequirements = buildIngredientRequirements(
+        requestedQuantity,
+        productById,
+      );
+      validateIngredientAvailability(ingredientRequirements);
 
       const { promotionId, discountAmount } = await resolvePromotion(
         tx,

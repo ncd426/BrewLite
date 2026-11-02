@@ -18,6 +18,7 @@ dbDescribe('Promotion preview and checkout - PostgreSQL integration', () => {
   let prisma: PrismaService;
   let userId = 0;
   let productId = 0;
+  let ingredientId = 0;
   let promotionId = 0;
   let code = '';
 
@@ -65,11 +66,21 @@ dbDescribe('Promotion preview and checkout - PostgreSQL integration', () => {
       data: {
         name: `Promotion product ${suffix}`,
         price: 35000,
-        stock: 10,
-        version: 0,
       },
     });
     productId = product.id;
+    const ingredient = await prisma.ingredient.create({
+      data: {
+        code: `PREVIEW-${suffix}`,
+        name: `Promotion ingredient ${suffix}`,
+        unit: 'ml',
+        stockQuantity: 10,
+      },
+    });
+    ingredientId = ingredient.id;
+    await prisma.productIngredient.create({
+      data: { productId, ingredientId, quantity: 1 },
+    });
 
     code = `PREVIEW${suffix.slice(0, 14).toUpperCase()}`;
     const promotion = await prisma.promotion.create({
@@ -98,9 +109,11 @@ dbDescribe('Promotion preview and checkout - PostgreSQL integration', () => {
     }
     if (promotionId) await prisma.promotion.deleteMany({ where: { id: promotionId } });
     if (productId) await prisma.product.deleteMany({ where: { id: productId } });
+    if (ingredientId) await prisma.ingredient.deleteMany({ where: { id: ingredientId } });
     if (userId) await prisma.user.deleteMany({ where: { id: userId } });
     userId = 0;
     productId = 0;
+    ingredientId = 0;
     promotionId = 0;
   });
 
@@ -122,7 +135,7 @@ dbDescribe('Promotion preview and checkout - PostgreSQL integration', () => {
       total: 73600,
     });
     expect(await prisma.order.count({ where: { userId } })).toBe(0);
-    expect((await prisma.product.findUnique({ where: { id: productId } }))?.stock).toBe(10);
+    expect((await prisma.ingredient.findUnique({ where: { id: ingredientId } }))?.stockQuantity).toBe(10);
 
     const order = await request(app.getHttpServer())
       .post('/orders')
@@ -135,7 +148,7 @@ dbDescribe('Promotion preview and checkout - PostgreSQL integration', () => {
       total: preview.body.total,
       promotionId,
     });
-    expect((await prisma.product.findUnique({ where: { id: productId } }))?.stock).toBe(8);
+    expect((await prisma.ingredient.findUnique({ where: { id: ingredientId } }))?.stockQuantity).toBe(8);
   }, 30000);
 
   it('rejects an invalid promotion code without writing or reserving stock', async () => {
@@ -144,7 +157,7 @@ dbDescribe('Promotion preview and checkout - PostgreSQL integration', () => {
       .send({ promotionCode: 'NOT-A-REAL-CODE', items: items() })
       .expect(400);
     expect(await prisma.order.count({ where: { userId } })).toBe(0);
-    expect((await prisma.product.findUnique({ where: { id: productId } }))?.stock).toBe(10);
+    expect((await prisma.ingredient.findUnique({ where: { id: ingredientId } }))?.stockQuantity).toBe(10);
   });
 
   it('rejects an inactive promotion', async () => {

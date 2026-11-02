@@ -1,11 +1,10 @@
 import { transitionOrderStatus } from './order-state-machine';
 import { resolvePromotion } from './promotion-rule';
-import { NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { OrderStatus as PrismaOrderStatus, PaymentStatus } from '@prisma/client';
@@ -13,6 +12,10 @@ import { OrderStatus as PrismaOrderStatus, PaymentStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderItemDto } from './dto/create-order.dto';
 import { SIZE_SURCHARGE, TOPPING_PRICE } from './pricing';
+import {
+  buildIngredientRequirements,
+  validateIngredientAvailability,
+} from '../inventory/recipe-inventory';
 
 export type OrderStatus = PrismaOrderStatus;
 
@@ -23,7 +26,6 @@ export type CreateOrderInput = {
 };
 
 const MAX_DATABASE_INT = 2147483647;
-const MAX_STOCK_RESERVATION_ATTEMPTS = 10;
 
 function checkMoney(value: number): number {
   if (
@@ -39,52 +41,31 @@ function checkMoney(value: number): number {
   return value;
 }
 
-async function reserveProductStock(
+async function consumeIngredients(
   tx: Prisma.TransactionClient,
-  productId: number,
-  quantity: number,
-  initialVersion: number,
+  requirements: ReturnType<typeof buildIngredientRequirements>,
 ) {
-  let version = initialVersion;
-
-  for (
-    let attempt = 0;
-    attempt < MAX_STOCK_RESERVATION_ATTEMPTS;
-    attempt += 1
-  ) {
-    const reservation = await tx.product.updateMany({
+  for (const requirement of requirements.sort(
+    (left, right) => left.ingredientId - right.ingredientId,
+  )) {
+    const reservation = await tx.ingredient.updateMany({
       where: {
-        id: productId,
-        version,
-        stock: { gte: quantity },
+        id: requirement.ingredientId,
+        stockQuantity: { gte: requirement.quantity },
       },
       data: {
-        stock: { decrement: quantity },
-        version: { increment: 1 },
+        stockQuantity: { decrement: requirement.quantity },
       },
     });
 
     if (reservation.count === 1) {
-      return;
+      continue;
     }
 
-    const currentProduct = await tx.product.findUnique({
-      where: { id: productId },
-      select: { stock: true, version: true },
-    });
-
-    if (!currentProduct || currentProduct.stock < quantity) {
-      throw new BadRequestException(
-        `Insufficient stock for product ${productId}`,
+    throw new BadRequestException(
+      `Insufficient stock for ingredient ${requirement.ingredientName}`,
       );
-    }
-
-    version = currentProduct.version;
   }
-
-  throw new ConflictException(
-    `Stock changed while placing the order for product ${productId}; please retry`,
-  );
 }
 
 
@@ -181,8 +162,19 @@ export class OrdersService {
         select: {
           id: true,
           price: true,
-          stock: true,
-          version: true,
+          productIngredients: {
+            select: {
+              ingredientId: true,
+              quantity: true,
+              isOptional: true,
+              ingredient: {
+                select: {
+                  name: true,
+                  stockQuantity: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -208,15 +200,11 @@ export class OrdersService {
         );
       }
 
-      for (const [productId, quantity] of requestedQuantity) {
-        const product = productMap.get(productId)!;
-
-        if (quantity > product.stock) {
-          throw new BadRequestException(
-            `Insufficient stock for product ${productId}`,
-          );
-        }
-      }
+      const ingredientRequirements = buildIngredientRequirements(
+        requestedQuantity,
+        productMap,
+      );
+      validateIngredientAvailability(ingredientRequirements);
 
       // Calculate each line using authoritative product prices.
       const orderItems = input.items.map((item) => {
@@ -300,17 +288,7 @@ export class OrdersService {
         subtotal - discountAmount,
       );
 
-      // Reserve stock with a version check so concurrent orders cannot oversell.
-      for (const [productId, quantity] of requestedQuantity) {
-        const product = productMap.get(productId)!;
-
-        await reserveProductStock(
-          tx,
-          productId,
-          quantity,
-          product.version,
-        );
-      }
+      await consumeIngredients(tx, ingredientRequirements);
 
       // 4. Tạo Order và OrderItems trong transaction.
       const order = await tx.order.create({
