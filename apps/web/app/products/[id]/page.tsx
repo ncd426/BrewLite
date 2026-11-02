@@ -80,6 +80,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-amber-700">BrewLite</p>
             <h1 className="mt-2 text-3xl font-bold">{product.name}</h1>
+            <p className={`mt-2 text-sm font-medium ${product.inStock ? 'text-emerald-700' : 'text-red-700'}`}>
+              {product.inStock ? 'Còn hàng' : 'Hết hàng'}
+            </p>
           </div>
 
           <p className="text-gray-600">
@@ -138,6 +141,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           </div>
 
           <button
+            disabled={!product.inStock}
             onClick={() =>
               addToCart({
                 id: product.id,
@@ -148,9 +152,9 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
                 toppings: selectedToppings,
               })
             }
-            className="w-full rounded-xl bg-amber-700 px-4 py-3 font-medium text-white"
+            className="w-full rounded-xl bg-amber-700 px-4 py-3 font-medium text-white disabled:cursor-not-allowed disabled:bg-gray-400"
           >
-            Thêm vào giỏ hàng
+            {product.inStock ? 'Thêm vào giỏ hàng' : 'Hết hàng'}
           </button>
         </div>
       </div>

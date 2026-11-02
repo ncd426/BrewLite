@@ -17,6 +17,9 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
 
         <div className="mt-auto pt-3">
+          <p className={`mb-2 text-sm ${product.inStock ? 'text-emerald-700' : 'text-red-700'}`}>
+            {product.inStock ? 'Còn hàng' : 'Hết hàng'}
+          </p>
           <Link
             href={`/products/${product.id}`}
             className="block w-full rounded-xl bg-amber-600 px-4 py-2 text-center text-sm font-medium text-white transition hover:bg-amber-700"
