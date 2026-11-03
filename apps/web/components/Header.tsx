@@ -100,7 +100,7 @@ export function Header() {
           href="/orders"
           aria-label="Lịch sử đơn hàng"
           title="Lịch sử đơn hàng"
-          className="absolute left-1/2 top-1/2 inline-flex h-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-2 rounded-full border border-amber-200/80 bg-amber-50 px-2.5 text-xs font-semibold text-amber-800 shadow-sm transition-all duration-200 hover:bg-amber-100 active:scale-95 sm:h-auto sm:px-3.5 sm:py-1.5"
+          className="absolute left-1/2 top-1/2 inline-flex h-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-2 rounded-full border border-amber-200/80 bg-amber-50 px-2.5 text-xs font-semibold text-amber-800 shadow-sm transition-all duration-200 hover:bg-amber-100 active:scale-95 min-[824px]:h-auto min-[824px]:px-3.5 min-[824px]:py-1.5"
         >
           <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -112,14 +112,14 @@ export function Header() {
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
           </svg>
-          <span className="hidden sm:inline">Lịch sử đơn hàng</span>
+          <span className="hidden min-[824px]:inline">Lịch sử đơn hàng</span>
         </Link>
         <nav className="ml-auto flex items-center gap-2 sm:gap-3">
           <Link
             href="/cart"
             aria-label="Giỏ hàng"
             title="Giỏ hàng"
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300 bg-white/80 text-sm font-medium text-amber-900 shadow-sm backdrop-blur transition hover:border-amber-400 hover:bg-amber-100/50 sm:h-auto sm:w-auto sm:gap-2 sm:px-4 sm:py-2"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-amber-300 bg-white/80 text-sm font-medium text-amber-900 shadow-sm backdrop-blur transition hover:border-amber-400 hover:bg-amber-100/50 min-[824px]:h-auto min-[824px]:w-auto min-[824px]:gap-2 min-[824px]:px-4 min-[824px]:py-2"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -135,10 +135,10 @@ export function Header() {
                 d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
               />
             </svg>
-            <span className="hidden sm:inline">Giỏ hàng</span>
+            <span className="hidden min-[824px]:inline">Giỏ hàng</span>
 
             {mounted && totalItems > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-700 px-1 text-xs font-bold text-white shadow sm:static">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-700 px-1 text-xs font-bold text-white shadow min-[824px]:static">
                 {totalItems}
               </span>
             )}
@@ -152,16 +152,16 @@ export function Header() {
                 aria-label="Thông tin cá nhân"
                 aria-expanded={accountMenuOpen}
                 onClick={() => setAccountMenuOpen((open) => !open)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-sm font-medium text-amber-900 transition hover:bg-amber-200 sm:h-auto sm:w-auto sm:max-w-56 sm:gap-2 sm:px-4 sm:py-2"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-sm font-medium text-amber-900 transition hover:bg-amber-200 min-[824px]:h-auto min-[824px]:w-auto min-[824px]:max-w-56 min-[824px]:gap-2 min-[824px]:px-4 min-[824px]:py-2"
                 title={userName || userEmail}
               >
                 <svg aria-hidden="true" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M20 21a8 8 0 00-16 0m8-10a4 4 0 100-8 4 4 0 000 8z" />
                 </svg>
-                <span className="hidden max-w-40 truncate sm:inline">{userName || userEmail}</span>
+                <span className="hidden max-w-40 truncate min-[824px]:inline">{userName || userEmail}</span>
                 <svg
                   aria-hidden="true"
-                  className={`hidden h-4 w-4 transition-transform sm:block ${accountMenuOpen ? 'rotate-180' : ''}`}
+                  className={`hidden h-4 w-4 transition-transform min-[824px]:block ${accountMenuOpen ? 'rotate-180' : ''}`}
                   viewBox="0 0 20 20"
                   fill="currentColor"
                 >
@@ -204,12 +204,12 @@ export function Header() {
               href="/login"
               aria-label="Đăng nhập"
               title="Đăng nhập"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-800 text-sm font-medium text-white shadow-sm transition hover:bg-amber-900 hover:shadow sm:h-auto sm:w-auto sm:px-4 sm:py-2"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-800 text-sm font-medium text-white shadow-sm transition hover:bg-amber-900 hover:shadow min-[824px]:h-auto min-[824px]:w-auto min-[824px]:px-4 min-[824px]:py-2"
             >
-              <svg aria-hidden="true" className="h-5 w-5 sm:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <svg aria-hidden="true" className="h-5 w-5 min-[824px]:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5m5 5H3" />
               </svg>
-              <span className="hidden sm:inline">Đăng nhập</span>
+              <span className="hidden min-[824px]:inline">Đăng nhập</span>
             </Link>
           )}
         </nav>
